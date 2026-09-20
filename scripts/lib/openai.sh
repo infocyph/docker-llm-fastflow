@@ -83,7 +83,6 @@ run_chat_prompt() {
   require_command jq
 
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf -- "$tmp_dir"' RETURN
   system_file="$tmp_dir/system.txt"
   content_file="$tmp_dir/content.txt"
   images_file="$tmp_dir/images.json"
@@ -101,8 +100,10 @@ run_chat_prompt() {
 
   response="$(jq -er '.choices[0].message.content // empty' "$response_file")" || {
     cat "$response_file" >&2
+    rm -rf -- "$tmp_dir"
     die "FastFlowLM response did not contain message content"
   }
+  rm -rf -- "$tmp_dir"
   printf '%s\n' "$response"
 }
 
