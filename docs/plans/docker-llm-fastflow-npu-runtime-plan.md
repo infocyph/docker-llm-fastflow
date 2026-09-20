@@ -186,7 +186,8 @@ Standalone Compose publishes only:
 127.0.0.1:52625:52625
 ```
 
-No wildcard host publication by default.
+The wrapper defaults FastFlow server CORS to disabled (`--cors 0`) while preserving
+explicit native overrides. No wildcard host publication by default.
 
 LocalDevStack/Nginx will own the higher-level user-facing route.
 
@@ -225,6 +226,7 @@ LLM_FASTFLOW_MODEL=qwen3.5:9b
 FLM_MODEL_PATH=/models
 FLM_SERVE_PORT=52625
 FLM_HOST=0.0.0.0
+FLM_CORS=0
 FLM_DISABLE_UPDATE_CHECK=1
 LLM_FASTFLOW_VERSION=<image/release version>
 ```
@@ -349,7 +351,9 @@ The smoke test must validate:
 - server health;
 - `/v1/models`;
 - real non-streaming chat inference;
-- clean runtime shutdown.
+- named-volume persistence across container recreation;
+- restart health;
+- the image SIGINT stop contract.
 
 A future self-hosted HX 370 runner may automate this gate. Until then, do not fake NPU
 inference on GitHub-hosted CI.
@@ -389,7 +393,8 @@ Publication must:
 - generate BuildKit provenance;
 - generate SBOM;
 - generate registry attestations;
-- verify post-push digest/platform.
+- verify post-push digest/platform;
+- rerun the hardware-independent image smoke against the published registry digest.
 
 Do not claim arm64 support before FastFlow publishes/supports a corresponding native
 runtime and hardware contract.
