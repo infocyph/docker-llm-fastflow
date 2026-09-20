@@ -423,8 +423,13 @@ Publication must:
 - generate BuildKit provenance;
 - generate SBOM;
 - generate registry attestations;
-- verify post-push digest/platform;
-- rerun the hardware-independent image smoke against the published registry digest.
+- verify each registry tag resolves to the exact pushed OCI digest;
+- verify the remote OCI index contains `linux/amd64`;
+- inspect the published `linux/amd64` image config remotely for entrypoint, command,
+  model/version environment and exposed-port contracts;
+- avoid re-pulling the multi-gigabyte baked-model image onto the publisher merely for
+  post-push metadata verification; the validated local candidate remains the executable
+  runtime gate.
 
 Do not claim arm64 support before FastFlow publishes/supports a corresponding native
 runtime and hardware contract.
