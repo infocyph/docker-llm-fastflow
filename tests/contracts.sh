@@ -57,15 +57,15 @@ jq -e '.services["llm-fastflow"].volumes | any(.target == "/workspace" and .read
 pass "optional workspace contract"
 
 grep -Fq 'ARG FASTFLOW_BASE_IMAGE=debian:stable-slim' Dockerfile
-grep -Fq "FROM ${FASTFLOW_BASE_IMAGE}" Dockerfile
+grep -Fq "FROM \${FASTFLOW_BASE_IMAGE}" Dockerfile
 grep -Fq 'FASTFLOWLM_VERSION=1.0.6' Dockerfile
-grep -Fq "fastflowlm_${FASTFLOWLM_VERSION}_linux.tar.gz" Dockerfile
+grep -Fq "fastflowlm_\${FASTFLOWLM_VERSION}_linux.tar.gz" Dockerfile
 grep -Fq 'sha256sum -c -' Dockerfile
 grep -Fq 'ARG FASTFLOW_MODEL=qwen3.5:9b' Dockerfile
 grep -Fq 'FLM_MODEL_PATH="/models"' Dockerfile
-grep -Fq "LLM_FASTFLOW_MODEL=\"${FASTFLOW_MODEL}\"" Dockerfile
-grep -Fq "/opt/fastflowlm/flm pull \"${FASTFLOW_MODEL}\"" Dockerfile
-grep -Fq "/opt/fastflowlm/flm check \"${FASTFLOW_MODEL}\"" Dockerfile
+grep -Fq "LLM_FASTFLOW_MODEL=\"\${FASTFLOW_MODEL}\"" Dockerfile
+grep -Fq "/opt/fastflowlm/flm pull \"\${FASTFLOW_MODEL}\"" Dockerfile
+grep -Fq "/opt/fastflowlm/flm check \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq 'EXPOSE 52625' Dockerfile
 grep -Fq "http://127.0.0.1:\${FLM_SERVE_PORT:-52625}/v1/models" Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
