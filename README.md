@@ -60,7 +60,7 @@ Minimum host contract:
 
 ```text
 AMD XDNA2 NPU
-Linux kernel >= 6.17 with a compatible amdxdna driver
+Kernel 7.0+ with amdxdna, or a host-installed amdxdna-dkms driver
 NPU firmware >= 1.1.0.0
 /dev/accel/accel0
 sufficient/unlimited memlock
@@ -72,7 +72,7 @@ Validate the device on the host:
 ls -l /dev/accel/accel0
 ```
 
-The image deliberately does **not** install `amdxdna-dkms`. A container must never replace the host's kernel driver.
+The image deliberately does **not** install `amdxdna-dkms`. FastFlowLM's current Linux contract allows kernel 7.0+ with the in-kernel `amdxdna` driver or a compatible host-installed `amdxdna-dkms`; either way, kernel-driver ownership stays on the host.
 
 ## Quick start
 
@@ -220,7 +220,7 @@ Local builds use the current verified FastFlowLM release asset:
 docker build -t llm-fastflow:local .
 ```
 
-The Dockerfile verifies the official release tarball with SHA-256 before installing it, then pulls and verifies the HX 370 default `qwen3.5:9b` model during the image build.
+The Dockerfile verifies the official release tarball with SHA-256 before installing it, then pulls and verifies the HX 370 default `qwen3.5:9b` model during the image build. Heavy OS, FastFlow runtime, and model layers are isolated from the per-build image version so normal commits/releases can reuse the multi-gigabyte model cache.
 
 CI and publication resolve the **current stable FastFlowLM GitHub release** and verify that `qwen3.5:9b` exists in that exact release catalog. Publication also resolves the moving `debian:stable-slim` base to a digest before building. This keeps `latest` current while making each individual build traceable to concrete upstream inputs.
 
