@@ -20,6 +20,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     FLM_MODEL_PATH="/models" \
     FLM_SERVE_PORT="52625" \
     FLM_HOST="0.0.0.0" \
+    FLM_CORS="0" \
     FLM_DISABLE_UPDATE_CHECK="1" \
     PATH="/opt/fastflowlm:${PATH}"
 
