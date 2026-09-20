@@ -29,6 +29,7 @@ RUN set -eux; \
       jq \
       libdrm2 \
       libgcc-s1 \
+      libgomp1 \
       libnuma1 \
       libstdc++6 \
       libudev1 \
