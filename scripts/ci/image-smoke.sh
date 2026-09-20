@@ -30,6 +30,8 @@ docker run --rm --entrypoint /bin/sh "$image" -c '
   test -d /opt/fastflowlm/xclbins
   test "$FLM_MODEL_PATH" = /models
   test "$FLM_SERVE_PORT" = 52625
+  test "$FLM_HOST" = 0.0.0.0
+  test "$FLM_CORS" = 0
   test "$FLM_DISABLE_UPDATE_CHECK" = 1
 '
 
