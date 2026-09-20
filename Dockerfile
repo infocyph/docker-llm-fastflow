@@ -4,26 +4,10 @@ FROM ${FASTFLOW_BASE_IMAGE}
 ARG FASTFLOWLM_VERSION=1.0.6
 ARG FASTFLOWLM_SHA256=99f1032656b3dd8135675ca3be4e3aa4169e732ecd2d5fb886b24570b0a80851
 ARG FASTFLOW_MODEL=qwen3.5:9b
-ARG LLM_FASTFLOW_VERSION=dev
+ARG DEBIAN_FRONTEND=noninteractive
 
-LABEL org.opencontainers.image.source="https://github.com/infocyph/docker-llm-fastflow"
-LABEL org.opencontainers.image.description="AMD XDNA2 NPU local LLM runtime powered by FastFlowLM"
-LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.authors="infocyph,abmmhasan"
-LABEL org.opencontainers.image.version="${LLM_FASTFLOW_VERSION}"
-LABEL io.infocyph.llm.default-model="${FASTFLOW_MODEL}"
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    FASTFLOWLM_VERSION="${FASTFLOWLM_VERSION}" \
-    LLM_FASTFLOW_VERSION="${LLM_FASTFLOW_VERSION}" \
-    LLM_FASTFLOW_MODEL="${FASTFLOW_MODEL}" \
-    FLM_MODEL_PATH="/models" \
-    FLM_SERVE_PORT="52625" \
-    FLM_HOST="0.0.0.0" \
-    FLM_CORS="0" \
-    FLM_DISABLE_UPDATE_CHECK="1" \
-    PATH="/opt/fastflowlm:${PATH}"
-
+# Keep OS dependencies independent from FastFlow/model/image-version inputs so the
+# expensive NPU/model layers remain reusable across normal repository changes.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -34,6 +18,8 @@ RUN apt-get update \
         libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Official portable FastFlow runtime. This layer changes only when the resolved
+# upstream FastFlow release/digest changes.
 RUN set -eux; \
     archive="/tmp/fastflowlm.tar.gz"; \
     curl -fL --retry 5 --retry-delay 2 \
@@ -53,15 +39,18 @@ RUN set -eux; \
     done; \
     ! grep -q 'not found' /tmp/fastflowlm-ldd.txt; \
     rm -f /tmp/fastflowlm-ldd.txt; \
-    /opt/fastflowlm/flm version
+    FLM_DISABLE_UPDATE_CHECK=1 /opt/fastflowlm/flm version
 
-# Bake the HX 370 default model so first startup is immediately usable and
-# does not depend on a multi-gigabyte first-run download.
+# Bake the HX 370 default model. This layer depends on FastFlow + model selection,
+# but not on the repository/image version, so ordinary code/docs releases reuse it.
 RUN set -eux; \
-    /opt/fastflowlm/flm pull "$LLM_FASTFLOW_MODEL"; \
-    /opt/fastflowlm/flm check "$LLM_FASTFLOW_MODEL"; \
-    /opt/fastflowlm/flm list --filter installed | tee /tmp/fastflowlm-models.txt; \
-    grep -Fiq "$LLM_FASTFLOW_MODEL" /tmp/fastflowlm-models.txt; \
+    FLM_MODEL_PATH=/models FLM_DISABLE_UPDATE_CHECK=1 \
+      /opt/fastflowlm/flm pull "${FASTFLOW_MODEL}"; \
+    FLM_MODEL_PATH=/models FLM_DISABLE_UPDATE_CHECK=1 \
+      /opt/fastflowlm/flm check "${FASTFLOW_MODEL}"; \
+    FLM_MODEL_PATH=/models FLM_DISABLE_UPDATE_CHECK=1 \
+      /opt/fastflowlm/flm list --filter installed | tee /tmp/fastflowlm-models.txt; \
+    grep -Fiq "${FASTFLOW_MODEL}" /tmp/fastflowlm-models.txt; \
     rm -f /tmp/fastflowlm-models.txt
 
 COPY scripts/llm-fastflow /usr/local/bin/llm-fastflow
@@ -70,6 +59,27 @@ COPY scripts/commands /usr/local/lib/llm-fastflow/commands
 
 RUN chmod 0755 /usr/local/bin/llm-fastflow \
     && chmod -R a+rX /usr/local/lib/llm-fastflow
+
+# Dynamic image version and runtime-only server settings intentionally come after
+# the multi-gigabyte model layer so they cannot invalidate it.
+ARG LLM_FASTFLOW_VERSION=dev
+
+ENV FASTFLOWLM_VERSION="${FASTFLOWLM_VERSION}" \
+    LLM_FASTFLOW_VERSION="${LLM_FASTFLOW_VERSION}" \
+    LLM_FASTFLOW_MODEL="${FASTFLOW_MODEL}" \
+    FLM_MODEL_PATH="/models" \
+    FLM_SERVE_PORT="52625" \
+    FLM_HOST="0.0.0.0" \
+    FLM_CORS="0" \
+    FLM_DISABLE_UPDATE_CHECK="1" \
+    PATH="/opt/fastflowlm:${PATH}"
+
+LABEL org.opencontainers.image.source="https://github.com/infocyph/docker-llm-fastflow" \
+      org.opencontainers.image.description="AMD XDNA2 NPU local LLM runtime powered by FastFlowLM" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.authors="infocyph,abmmhasan" \
+      org.opencontainers.image.version="${LLM_FASTFLOW_VERSION}" \
+      io.infocyph.llm.default-model="${FASTFLOW_MODEL}"
 
 EXPOSE 52625
 
