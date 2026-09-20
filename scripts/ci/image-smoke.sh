@@ -36,6 +36,12 @@ docker run --rm --entrypoint /bin/sh "$image" -c '
   test "$FLM_HOST" = 0.0.0.0
   test "$FLM_CORS" = 0
   test "$FLM_DISABLE_UPDATE_CHECK" = 1
+  command -v git >/dev/null
+  command -v pdftotext >/dev/null
+  command -v pdftoppm >/dev/null
+  test -f /usr/local/lib/llm-fastflow/prompts/ai-commit.txt
+  llm-fastflow help | grep -q "ai-commit"
+  llm-fastflow help | grep -q "prompt"
 '
 
 printf 'PASS: image smoke (%s)\n' "$image"
