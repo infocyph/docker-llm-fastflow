@@ -346,6 +346,9 @@ final            -> runtime + baked model, used for publication/runtime
 ```
 
 Normal repository/image-version changes must not invalidate the heavy model stage.
+Pull-request validation builds/checks the final baked stage without exporting its huge
+cache. Only a `main` push uploads the full baked-model GHA cache, which publication can
+then reuse.
 
 ### Real NPU gate
 
