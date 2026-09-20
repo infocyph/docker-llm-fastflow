@@ -74,10 +74,11 @@ jobs:
       - name: Validate Dockerfile structure
         run: docker buildx build --check --progress=plain .
 
-      - name: Build current runtime image
+      - name: Build lightweight runtime smoke image
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: fastflow-runtime
           load: true
           pull: true
           tags: llm-fastflow:check
@@ -88,11 +89,30 @@ jobs:
             FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
             LLM_FASTFLOW_VERSION=ci-${{ github.sha }}
           cache-from: type=gha,scope=fastflow-check
-          cache-to: type=gha,mode=max,scope=fastflow-check
 
       - name: Runtime image smoke
         env:
           FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
           FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
           LLM_FASTFLOW_VERSION: ci-${{ github.sha }}
+          FASTFLOW_EXPECT_BAKED_MODEL: "0"
         run: bash scripts/ci/image-smoke.sh llm-fastflow:check
+
+      - name: Build final baked image contract
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: final
+          load: false
+          pull: false
+          push: false
+          build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
+            FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
+            FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
+            LLM_FASTFLOW_VERSION=ci-${{ github.sha }}
+          cache-from: type=gha,scope=fastflow-check
+          cache-to: type=gha,mode=max,scope=fastflow-check
+          provenance: false
+          sbom: false
