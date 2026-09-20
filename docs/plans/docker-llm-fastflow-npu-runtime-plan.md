@@ -20,9 +20,12 @@ docker-llm-ollama  -> CPU / NVIDIA GPU / AMD ROCm GPU / Ollama
 This repository must stay provider-focused. It packages FastFlowLM, exposes its API,
 persists its model state, and provides a small runtime CLI.
 
-LocalDevStack owns automatic hardware detection and provider selection. Once this image
-is published and validated, a compatible XDNA2 NPU should win automatically over the
-Ollama CPU/GPU paths without requiring an end-user provider selector.
+LocalDevStack owns automatic hardware detection and provider selection. The FastFlow and
+Ollama provider services are mutually exclusive for one stack: `llm-fastflow` and
+`llm-ollama` never run at the same time. Once this image is published and validated,
+a compatible XDNA2 NPU should select FastFlow automatically; otherwise LocalDevStack
+selects Ollama for NVIDIA, ROCm or CPU. The common `llm` identity is only an alias for
+that one active provider, not a load-balanced/failover pair.
 
 ## 2. Hardware target
 
@@ -244,6 +247,13 @@ llm-fastflow
 Supported commands:
 
 ```text
+ask [-m model] <prompt>
+chat [model]
+prompt [options] <prompt>
+code [options] <task>
+review [options] [file...] [focus]
+json [options] <prompt>
+ai-commit [options]
 serve [model] [args...]
 run [model] [args...]
 validate [args...]
@@ -252,9 +262,13 @@ pull [model] [args...]
 check [model] [args...]
 remove <model> [args...]
 flm [args...]
+api <path> [curl-args...]
 version
 help
 ```
+
+The developer commands use FastFlowLM's OpenAI-compatible `/v1` API and must not
+depend on Ollama-native `/api/*` routes.
 
 The wrapper delegates to FastFlowLM and must not own Docker lifecycle.
 
@@ -560,7 +574,8 @@ AMD ROCm GPU         -> llm-ollama
 otherwise            -> llm-ollama CPU
 ```
 
-No normal user-facing provider selector is required.
+Exactly one provider service is active. The common `llm` name points to that selected
+service. No normal user-facing provider selector is required.
 
 ## 18. Definition of done
 
