@@ -49,7 +49,7 @@ fi
 if grep -qE '^[[:space:]]*container_name:' compose.yml; then
   fail "fixed container_name is not allowed"
 fi
-grep -Fq 'LLM_THINK: ${LLM_THINK:-}' compose.yml
+grep -Fq "LLM_THINK: \${LLM_THINK:-}" compose.yml
 pass "Compose NPU contract"
 
 workspace_json="$(LLM_FASTFLOW_WORKSPACE="$ROOT" docker compose -f compose.yml -f compose.workspace.yml config --format json)"
