@@ -40,8 +40,8 @@ Architecture: linux/amd64
 The host owns:
 
 - supported XDNA2 hardware;
-- compatible NPU firmware;
-- compatible `amdxdna` kernel driver;
+- NPU firmware 1.1.0.0 or later;
+- kernel 7.0+ with `amdxdna`, or a compatible host-installed `amdxdna-dkms` driver;
 - working `/dev/accel/accel0`;
 - kernel/firmware pairing supported by FastFlowLM;
 - Docker device passthrough.
@@ -281,12 +281,13 @@ The final Dockerfile must:
 6. verify the portable dynamic-library closure;
 7. expose FastFlow on PATH;
 8. bake and verify `qwen3.5:9b`;
-9. install the `llm-fastflow` wrapper;
-10. expose port 52625;
-11. healthcheck `/v1/models`;
-12. use FastFlow's graceful stop signal;
-13. contain no kernel-driver installation;
-14. contain no Docker socket access.
+9. isolate OS/runtime/model layers from `LLM_FASTFLOW_VERSION` so normal commits and releases reuse the heavy model cache;
+10. install the `llm-fastflow` wrapper;
+11. expose port 52625;
+12. healthcheck `/v1/models`;
+13. use FastFlow's intended SIGINT stop path;
+14. contain no kernel-driver installation;
+15. contain no Docker socket access.
 
 ## 12. Compose contract
 
