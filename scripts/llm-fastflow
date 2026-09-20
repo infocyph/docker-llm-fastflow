@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+FLM_BIN="${FLM_BIN:-/opt/fastflowlm/flm}"
+VERSION="${LLM_FASTFLOW_VERSION:-dev}"
+
+usage() {
+  cat <<'EOF'
+Usage: llm-fastflow <command> [args...]
+
+Commands:
+  help                Show this help
+  version             Show wrapper and FastFlowLM versions
+  validate            Validate XDNA2 NPU runtime
+  models              List supported/downloaded models
+  pull <model>        Download a model
+  remove <model>      Remove a downloaded model
+  rm <model>          Alias for remove
+  check <model>       Verify downloaded model files
+  run <model> [...]   Run a model interactively
+  serve [model] [...] Start the FastFlowLM server
+  bench <model> [...] Run FastFlowLM benchmark
+  flm [...]           Pass arguments directly to FastFlowLM
+EOF
+}
+
+need_flm() {
+  [[ -x "$FLM_BIN" ]] || {
+    printf 'llm-fastflow: FastFlowLM runtime not found at %s\n' "$FLM_BIN" >&2
+    exit 1
+  }
+}
+
+command="${1:-help}"
+[[ $# -eq 0 ]] || shift
+
+case "$command" in
+  help|-h|--help)
+    usage
+    ;;
+  version|-v|--version)
+    printf 'llm-fastflow %s\n' "$VERSION"
+    need_flm
+    "$FLM_BIN" version
+    ;;
+  models|list)
+    need_flm
+    exec "$FLM_BIN" list "$@"
+    ;;
+  rm|remove)
+    need_flm
+    exec "$FLM_BIN" remove "$@"
+    ;;
+  serve)
+    exec /usr/local/bin/llm-fastflow-entrypoint serve "$@"
+    ;;
+  validate|pull|check|run|bench)
+    need_flm
+    exec "$FLM_BIN" "$command" "$@"
+    ;;
+  flm)
+    need_flm
+    exec "$FLM_BIN" "$@"
+    ;;
+  *)
+    printf 'llm-fastflow: unknown command: %s\n\n' "$command" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
