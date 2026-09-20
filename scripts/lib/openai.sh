@@ -46,9 +46,11 @@ encode_images_json() {
   for image in "$@"; do
     [[ -f "$image" && -s "$image" ]] || { rm -f "$tmp"; die "Image file unavailable or empty: $image"; }
     mime="$(image_mime "$image")" || { rm -f "$tmp"; die "FastFlow vision supports PNG/JPEG image input: $image"; }
-    printf 'data:%s;base64,' "$mime" >>"$tmp"
-    base64 "$image" | tr -d '\r\n' >>"$tmp"
-    printf '\n' >>"$tmp"
+    {
+      printf 'data:%s;base64,' "$mime"
+      base64 "$image" | tr -d '\r\n'
+      printf '\n'
+    } >>"$tmp"
   done
   jq -Rsc 'split("\n") | map(select(length > 0))' "$tmp" >"$output_file"
   rm -f "$tmp"
