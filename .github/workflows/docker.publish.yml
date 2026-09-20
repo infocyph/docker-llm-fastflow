@@ -167,7 +167,7 @@ jobs:
           cache-from: |
             type=gha,scope=fastflow-publish
             type=gha,scope=fastflow-check
-          cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true,ignore-error=true
+          cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true
           provenance: false
           sbom: false
 
@@ -298,8 +298,28 @@ jobs:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
-          ref="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
-          image_json="$(docker buildx imagetools inspect "$ref" --format '{{json (index .Image "linux/amd64")}}')"
+          index_ref="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+          manifest_json="$(docker buildx imagetools inspect "$index_ref" --format '{{json .Manifest}}')"
+          platform_digest="$(
+            jq -er '
+              first(
+                .manifests[]?
+                | select(
+                    .platform.os == "linux"
+                    and .platform.architecture == "amd64"
+                  )
+                | .digest
+              )
+            ' <<<"$manifest_json"
+          )"
+
+          [[ "$platform_digest" == sha256:* ]] || {
+            echo "Unable to resolve linux/amd64 child manifest from $index_ref" >&2
+            exit 1
+          }
+
+          image_ref="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${platform_digest}"
+          image_json="$(docker buildx imagetools inspect "$image_ref" --format '{{json .Image}}')"
 
           jq -e \
             --arg model "$FASTFLOW_MODEL" \
