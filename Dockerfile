@@ -1,13 +1,11 @@
 ARG FASTFLOW_BASE_IMAGE=debian:stable-slim
-FROM ${FASTFLOW_BASE_IMAGE}
+FROM ${FASTFLOW_BASE_IMAGE} AS fastflow-base
 
 ARG FASTFLOWLM_VERSION=1.0.6
 ARG FASTFLOWLM_SHA256=99f1032656b3dd8135675ca3be4e3aa4169e732ecd2d5fb886b24570b0a80851
-ARG FASTFLOW_MODEL=qwen3.5:9b
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Keep OS dependencies independent from FastFlow/model/image-version inputs so the
-# expensive NPU/model layers remain reusable across normal repository changes.
+# OS dependencies are independent from FastFlow/model/image-version inputs.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -41,8 +39,11 @@ RUN set -eux; \
     rm -f /tmp/fastflowlm-ldd.txt; \
     FLM_DISABLE_UPDATE_CHECK=1 /opt/fastflowlm/flm version
 
-# Bake the HX 370 default model. This layer depends on FastFlow + model selection,
-# but not on the repository/image version, so ordinary code/docs releases reuse it.
+# The model stage is deliberately independent from wrapper/image-version changes.
+FROM fastflow-base AS fastflow-model
+
+ARG FASTFLOW_MODEL=qwen3.5:9b
+
 RUN set -eux; \
     FLM_MODEL_PATH=/models FLM_DISABLE_UPDATE_CHECK=1 \
       /opt/fastflowlm/flm pull "${FASTFLOW_MODEL}"; \
@@ -53,16 +54,18 @@ RUN set -eux; \
     grep -Fiq "${FASTFLOW_MODEL}" /tmp/fastflowlm-models.txt; \
     rm -f /tmp/fastflowlm-models.txt
 
+# Lightweight runtime stage used by hardware-independent CI smoke tests.
+FROM fastflow-base AS fastflow-runtime
+
+ARG FASTFLOW_MODEL=qwen3.5:9b
+ARG LLM_FASTFLOW_VERSION=dev
+
 COPY scripts/llm-fastflow /usr/local/bin/llm-fastflow
 COPY scripts/lib /usr/local/lib/llm-fastflow/lib
 COPY scripts/commands /usr/local/lib/llm-fastflow/commands
 
 RUN chmod 0755 /usr/local/bin/llm-fastflow \
     && chmod -R a+rX /usr/local/lib/llm-fastflow
-
-# Dynamic image version and runtime-only server settings intentionally come after
-# the multi-gigabyte model layer so they cannot invalidate it.
-ARG LLM_FASTFLOW_VERSION=dev
 
 ENV FASTFLOWLM_VERSION="${FASTFLOWLM_VERSION}" \
     LLM_FASTFLOW_VERSION="${LLM_FASTFLOW_VERSION}" \
@@ -90,3 +93,8 @@ STOPSIGNAL SIGINT
 
 ENTRYPOINT ["llm-fastflow"]
 CMD ["serve"]
+
+# Production image: same tested runtime plus the baked HX 370 default model.
+FROM fastflow-runtime AS final
+
+COPY --from=fastflow-model /models /models
