@@ -83,6 +83,7 @@ grep -Fq 'timeout-minutes: 60' .github/workflows/check.yml
 grep -Fq 'target: fastflow-runtime' .github/workflows/check.yml
 grep -Fq 'FASTFLOW_EXPECT_BAKED_MODEL: "0"' .github/workflows/check.yml
 grep -Fq 'Build final baked image contract' .github/workflows/check.yml
+grep -Fq "github.event_name == 'push'" .github/workflows/check.yml
 pass "current-upstream and staged-image CI policy"
 
 test -f docs/plans/docker-llm-fastflow-npu-runtime-plan.md
