@@ -102,7 +102,7 @@ img_tmp="$(mktemp --suffix=.png)"
 trap 'rm -f "$uri_tmp" "$img_tmp" "${fake_flm:-}"' EXIT
 printf 'png-test' >"$img_tmp"
 bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; encode_images_json "$1" "$2"' _ "$uri_tmp" "$img_tmp"
-jq -e 'length == 1 and .[0] | startswith("data:image/png;base64,")' "$uri_tmp" >/dev/null
+jq -e '(length == 1) and (.[0] | startswith("data:image/png;base64,"))' "$uri_tmp" >/dev/null
 pass "OpenAI vision data URI contract"
 
 fake_flm="$(mktemp)"
