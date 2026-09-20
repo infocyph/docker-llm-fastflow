@@ -1,0 +1,58 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'fastflow-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Static and Compose contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run contracts
+        run: tests/static.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Validate Dockerfile
+        run: docker buildx build --check --progress=plain .
+
+  image:
+    name: Portable FastFlow image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Build provider image
+        run: docker build --pull -t llm-fastflow:ci .
+
+      - name: Validate bundled FastFlow runtime
+        run: |
+          docker run --rm --entrypoint /opt/fastflowlm/flm llm-fastflow:ci version |
+            grep -F 'FLM v1.0.6'
+          docker run --rm --entrypoint /opt/fastflowlm/flm llm-fastflow:ci help >/dev/null
+          test "$(docker run --rm --entrypoint /usr/local/bin/llm-fastflow llm-fastflow:ci version | head -n1)" =             'llm-fastflow dev'
+
+      - name: Validate image metadata
+        run: |
+          test "$(docker image inspect llm-fastflow:ci --format '{{.Config.ExposedPorts}}')" = 'map[52625/tcp:{}]'
+          docker image inspect llm-fastflow:ci --format '{{json .Config.Healthcheck}}' |
+            grep -F '/v1/models'
