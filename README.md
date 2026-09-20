@@ -170,7 +170,7 @@ The developer commands use FastFlowLM's maintained OpenAI-compatible API
 `/api/*` endpoints.
 
 Thinking stays at the model/provider default for normal developer commands. Set
-`LLM_FASTFLOW_THINK=true|false` to force it per invocation. Strict structured
+`LLM_THINK=true|false` to force it per invocation. Strict structured
 output is different: `llm-fastflow json` always sends `think:false` so reasoning
 cannot displace or contaminate the JSON response.
 
