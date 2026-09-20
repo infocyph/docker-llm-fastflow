@@ -35,6 +35,7 @@ compose_json="$(docker compose -f compose.yml config --format json)"
 jq -e '.services["llm-fastflow"].image == "infocyph/llm-fastflow:latest"' <<<"$compose_json" >/dev/null
 jq -e '.services["llm-fastflow"].environment.LLM_FASTFLOW_MODEL == "qwen3.5:9b"' <<<"$compose_json" >/dev/null
 jq -e '.services["llm-fastflow"].environment.FLM_MODEL_PATH == "/models"' <<<"$compose_json" >/dev/null
+jq -e '.services["llm-fastflow"].environment.FLM_CORS == "0"' <<<"$compose_json" >/dev/null
 jq -e '.services["llm-fastflow"].ports[0].target == 52625' <<<"$compose_json" >/dev/null
 jq -e '.services["llm-fastflow"].volumes | any(.target == "/models")' <<<"$compose_json" >/dev/null
 jq -e '.services["llm-fastflow"].devices | any(.source == "/dev/accel/accel0" and .target == "/dev/accel/accel0")' <<<"$compose_json" >/dev/null
@@ -92,7 +93,15 @@ chmod +x "$fake_flm"
 pull_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b bash -c 'source scripts/lib/core.sh; source scripts/commands/pull.sh; command_main --force')"
 [[ "$pull_args" == 'pull qwen3.5:9b --force' ]] || fail "pull flags were mistaken for a model: $pull_args"
 
-serve_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --cors 1')"
+serve_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --cors 1')"
 [[ "$serve_args" == 'serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 1' ]] || fail "serve flags were mistaken for a model: $serve_args"
 
-pass "optional model arguments preserve native FastFlow flags"
+serve_override="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --host 127.0.0.1 --port 6000 --cors 1')"
+[[ "$serve_override" == 'serve qwen3.5:9b --host 127.0.0.1 --port 6000 --cors 1' ]] ||
+  fail "explicit FastFlow server options were duplicated or overwritten: $serve_override"
+
+serve_default="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main')"
+[[ "$serve_default" == 'serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 0' ]] ||
+  fail "FastFlow server defaults drifted: $serve_default"
+
+pass "optional model arguments and native FastFlow server options are preserved"
