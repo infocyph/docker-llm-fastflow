@@ -22,7 +22,7 @@ test "$(LLM_FASTFLOW_MODEL=qwen3.5:4b bash -c 'source scripts/lib/core.sh; resol
 pass "model selection precedence"
 
 help="$(FLM_BIN=/bin/true bash scripts/llm-fastflow help)"
-for command in serve run validate models pull check remove flm version; do
+for command in ask chat prompt code review json ai-commit serve run validate models pull check remove flm api version; do
   grep -Eq "^  ${command}[[:space:]]" <<<"$help" || fail "help missing command: $command"
 done
 pass "CLI command registry"
@@ -61,11 +61,14 @@ grep -Fq "LLM_FASTFLOW_MODEL=\"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm pull \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm check \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq 'EXPOSE 52625' Dockerfile
-grep -Fq 'http://127.0.0.1:52625/v1/models' Dockerfile
+grep -Fq 'http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models' Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
 grep -Fqx 'CMD ["serve"]' Dockerfile
 grep -Fqx 'STOPSIGNAL SIGINT' Dockerfile
 grep -Fq 'libxrt_driver_xdna.so.2' Dockerfile
+grep -Fq 'poppler-utils' Dockerfile
+grep -Fq 'git \' Dockerfile
+grep -Fq 'COPY scripts/prompts /usr/local/lib/llm-fastflow/prompts' Dockerfile
 if grep -Fq 'amdxdna-dkms' Dockerfile; then
   fail "host kernel driver must not be installed inside the image"
 fi
@@ -136,3 +139,23 @@ serve_default="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.
   fail "FastFlow server defaults drifted: $serve_default"
 
 pass "optional model arguments and native FastFlow server options are preserved"
+
+for file in scripts/lib/openai.sh scripts/lib/attachments.sh scripts/lib/commit.sh \
+  scripts/commands/ask.sh scripts/commands/chat.sh scripts/commands/prompt.sh \
+  scripts/commands/code.sh scripts/commands/review.sh scripts/commands/json.sh \
+  scripts/commands/ai-commit.sh scripts/commands/api.sh scripts/prompts/ai-commit.txt; do
+  [[ -s "$file" ]] || fail "developer parity file missing: $file"
+done
+
+grep -Fq '/v1/chat/completions' scripts/lib/openai.sh
+grep -Fq '/v1/models' scripts/lib/openai.sh
+grep -Fq 'data:image/png;base64,' scripts/lib/openai.sh
+grep -Fq 'data:image/jpeg;base64,' scripts/lib/openai.sh
+if grep -R -nE '/api/(chat|generate|tags)' scripts/lib scripts/commands; then
+  fail "FastFlow developer CLI must not depend on Ollama-native API routes"
+fi
+
+workspace_json="$(LLM_FASTFLOW_WORKSPACE="$ROOT" docker compose -f compose.yml -f compose.workspace.yml config --format json)"
+jq -e '.services["llm-fastflow"].working_dir == "/workspace"' <<<"$workspace_json" >/dev/null
+jq -e '.services["llm-fastflow"].volumes | any(.target == "/workspace" and .read_only == true)' <<<"$workspace_json" >/dev/null
+pass "developer CLI and workspace parity contract"
