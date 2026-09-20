@@ -60,7 +60,7 @@ Minimum host contract:
 
 ```text
 AMD XDNA2 NPU
-amdxdna kernel driver
+Linux kernel >= 6.17 with a compatible amdxdna driver
 NPU firmware >= 1.1.0.0
 /dev/accel/accel0
 sufficient/unlimited memlock
@@ -221,7 +221,7 @@ docker build -t llm-fastflow:local .
 
 The Dockerfile verifies the official release tarball with SHA-256 before installing it, then pulls and verifies the HX 370 default `qwen3.5:9b` model during the image build.
 
-Publication resolves the **current stable FastFlowLM GitHub release** at publish time and injects its version and official asset digest into the build. This keeps the moving `latest` image current without making the Dockerfile itself perform an unpinned "download latest" operation.
+CI and publication resolve the **current stable FastFlowLM GitHub release** and verify that `qwen3.5:9b` exists in that exact release catalog. Publication also resolves the moving `debian:stable-slim` base to a digest before building. This keeps `latest` current while making each individual build traceable to concrete upstream inputs.
 
 ## Validation
 
@@ -235,6 +235,7 @@ Hardware-independent CI covers:
 - image layout
 - baked `qwen3.5:9b` model integrity
 - FastFlowLM version execution without NPU access
+- critical XRT/XDNA shared-library dependency resolution
 
 Real NPU validation is provided separately:
 
@@ -280,7 +281,7 @@ The image intentionally has:
 - no automatic workspace mount
 - update checks disabled inside the fixed container runtime
 
-The only special hardware access is the explicitly passed XDNA2 accelerator device.
+The only special hardware access is the explicitly passed XDNA2 accelerator device. Docker stop uses `SIGINT`, matching FastFlowLM's graceful server shutdown path.
 
 ## Upstream
 

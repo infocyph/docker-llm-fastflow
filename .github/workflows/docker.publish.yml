@@ -106,6 +106,7 @@ jobs:
             echo "FASTFLOWLM_VERSION=$version"
             echo "FASTFLOWLM_SHA256=${digest#sha256:}"
             echo "FASTFLOWLM_ASSET=$asset"
+            echo "FASTFLOW_MODEL=qwen3.5:9b"
             echo "IMAGE_NAME=llm-fastflow"
             echo "CANDIDATE_IMAGE=llm-fastflow:publish-candidate"
           } >> "$GITHUB_ENV"
@@ -123,6 +124,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Resolve current Debian stable base
+        run: |
+          set -euo pipefail
+          base=debian:stable-slim
+          inspect="$(docker buildx imagetools inspect "$base")"
+          digest="$(awk '/^Digest:/ {print $2; exit}' <<<"$inspect")"
+          [[ "$digest" == sha256:* ]]
+          {
+            echo "FASTFLOW_BASE_IMAGE=${base}@${digest}"
+            echo "FASTFLOW_BASE_DIGEST=$digest"
+          } >> "$GITHUB_ENV"
+
       - name: Build release candidate
         uses: docker/build-push-action@v7
         with:
@@ -133,8 +146,10 @@ jobs:
           push: false
           tags: llm-fastflow:publish-candidate
           build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
             FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
             FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
             LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
           cache-from: type=gha,scope=fastflow-publish
           cache-to: type=gha,mode=max,scope=fastflow-publish
@@ -144,6 +159,7 @@ jobs:
       - name: Validate candidate without NPU
         env:
           FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
+          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
           LLM_FASTFLOW_VERSION: ${{ env.RELEASE_TAG }}
         run: bash .automation/scripts/ci/image-smoke.sh "$CANDIDATE_IMAGE"
 
@@ -204,8 +220,10 @@ jobs:
           pull: false
           push: true
           build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
             FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
             FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
             LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -257,7 +275,8 @@ jobs:
             echo "- Source revision: `$SOURCE_SHA`"
             echo "- FastFlowLM: `$FASTFLOWLM_VERSION`"
             echo "- FastFlowLM asset: `$FASTFLOWLM_ASSET`"
-            echo '- Default model: `qwen3.5:9b`'
+            echo "- Debian base digest: `$FASTFLOW_BASE_DIGEST`"
+            echo "- Default model: `$FASTFLOW_MODEL`"
             echo '- Accelerator: AMD XDNA2 NPU'
             echo '- Platform: `linux/amd64`'
             echo "- Digest: `$DIGEST`"

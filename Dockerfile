@@ -1,4 +1,5 @@
-FROM debian:stable-slim
+ARG FASTFLOW_BASE_IMAGE=debian:stable-slim
+FROM ${FASTFLOW_BASE_IMAGE}
 
 ARG FASTFLOWLM_VERSION=1.0.6
 ARG FASTFLOWLM_SHA256=99f1032656b3dd8135675ca3be4e3aa4169e732ecd2d5fb886b24570b0a80851
@@ -45,6 +46,11 @@ RUN set -eux; \
     test -x /opt/fastflowlm/flm-real; \
     ldd /opt/fastflowlm/flm-real | tee /tmp/fastflowlm-ldd.txt; \
     ! grep -q 'not found' /tmp/fastflowlm-ldd.txt; \
+    for lib in libxrt_core.so.2 libxrt_coreutil.so.2 libxrt_driver_xdna.so.2; do \
+      test -e "/opt/fastflowlm/lib/$lib"; \
+      ldd "/opt/fastflowlm/lib/$lib" | tee -a /tmp/fastflowlm-ldd.txt; \
+    done; \
+    ! grep -q 'not found' /tmp/fastflowlm-ldd.txt; \
     rm -f /tmp/fastflowlm-ldd.txt; \
     /opt/fastflowlm/flm version
 
@@ -69,7 +75,7 @@ EXPOSE 52625
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD curl --connect-timeout 2 -fsS http://127.0.0.1:52625/v1/models >/dev/null || exit 1
 
-STOPSIGNAL SIGTERM
+STOPSIGNAL SIGINT
 
 ENTRYPOINT ["llm-fastflow"]
 CMD ["serve"]

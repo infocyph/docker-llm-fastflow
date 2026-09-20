@@ -49,7 +49,8 @@ grep -q 'soft: -1' compose.yml
 grep -q 'hard: -1' compose.yml
 pass "Compose NPU contract"
 
-grep -Fq 'FROM debian:stable-slim' Dockerfile
+grep -Fq 'ARG FASTFLOW_BASE_IMAGE=debian:stable-slim' Dockerfile
+grep -Fq 'FROM ${FASTFLOW_BASE_IMAGE}' Dockerfile
 grep -Fq 'FASTFLOWLM_VERSION=1.0.6' Dockerfile
 grep -Fq "fastflowlm_\${FASTFLOWLM_VERSION}_linux.tar.gz" Dockerfile
 grep -Fq 'sha256sum -c -' Dockerfile
@@ -62,6 +63,8 @@ grep -Fq 'EXPOSE 52625' Dockerfile
 grep -Fq 'http://127.0.0.1:52625/v1/models' Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
 grep -Fqx 'CMD ["serve"]' Dockerfile
+grep -Fqx 'STOPSIGNAL SIGINT' Dockerfile
+grep -Fq 'libxrt_driver_xdna.so.2' Dockerfile
 if grep -Fq 'amdxdna-dkms' Dockerfile; then
   fail "host kernel driver must not be installed inside the image"
 fi
@@ -71,3 +74,25 @@ grep -Fq '/dev/accel/accel0' README.md
 grep -Fq 'qwen3.5:9b' README.md
 grep -Fq 'qwen3:14b' README.md
 pass "documentation contract"
+
+grep -Fq 'branches: [main]' .github/workflows/check.yml
+grep -Fq 'releases/latest' .github/workflows/check.yml
+grep -Fq 'FASTFLOW_BASE_IMAGE=' .github/workflows/check.yml
+grep -Fq 'timeout-minutes: 60' .github/workflows/check.yml
+pass "current-upstream CI policy"
+
+fake_flm="$(mktemp)"
+trap 'rm -f "$fake_flm"' EXIT
+cat >"$fake_flm" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*"
+EOF
+chmod +x "$fake_flm"
+
+pull_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b bash -c 'source scripts/lib/core.sh; source scripts/commands/pull.sh; command_main --force')"
+[[ "$pull_args" == 'pull qwen3.5:9b --force' ]] || fail "pull flags were mistaken for a model: $pull_args"
+
+serve_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --cors 1')"
+[[ "$serve_args" == 'serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 1' ]] || fail "serve flags were mistaken for a model: $serve_args"
+
+pass "optional model arguments preserve native FastFlow flags"

@@ -4,6 +4,7 @@ set -euo pipefail
 image="${1:?usage: image-smoke.sh <image>}"
 expected_flm="${FASTFLOWLM_VERSION:-1.0.6}"
 expected_wrapper="${LLM_FASTFLOW_VERSION:-dev}"
+expected_model="${FASTFLOW_MODEL:-qwen3.5:9b}"
 
 flm_output="$(docker run --rm --entrypoint /opt/fastflowlm/flm "$image" version)"
 IFS= read -r flm_version <<<"$flm_output"
@@ -13,7 +14,10 @@ wrapper_output="$(docker run --rm --entrypoint llm-fastflow "$image" version)"
 IFS= read -r wrapper_version <<<"$wrapper_output"
 [[ "$wrapper_version" == "llm-fastflow ${expected_wrapper}" ]]
 
-docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check qwen3.5:9b >/dev/null
+docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check "$expected_model" >/dev/null
+
+image_model="$(docker run --rm --entrypoint /bin/sh "$image" -c 'printf %s "$LLM_FASTFLOW_MODEL"')"
+[[ "$image_model" == "$expected_model" ]]
 
 # shellcheck disable=SC2016
 docker run --rm --entrypoint /bin/sh "$image" -c '
@@ -24,7 +28,6 @@ docker run --rm --entrypoint /bin/sh "$image" -c '
   test -d /opt/fastflowlm/lib
   test -d /opt/fastflowlm/xclbins
   test "$FLM_MODEL_PATH" = /models
-  test "$LLM_FASTFLOW_MODEL" = qwen3.5:9b
   test "$FLM_SERVE_PORT" = 52625
   test "$FLM_DISABLE_UPDATE_CHECK" = 1
 '
