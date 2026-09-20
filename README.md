@@ -150,6 +150,36 @@ Use the native FastFlow CLI when needed:
 docker compose exec llm-fastflow llm-fastflow flm help
 ```
 
+## Developer CLI parity
+
+FastFlow now carries the same developer-facing command family as `llm-ollama` where
+the backend capability exists:
+
+```text
+Developer: ask, chat, prompt, code, review, json, ai-commit
+Runtime:   serve, run, validate
+Model:     models, pull, check, remove
+Low level: flm, api, version
+```
+
+The developer commands use FastFlowLM's maintained OpenAI-compatible API
+(`/v1/models`, `/v1/chat/completions`). They do not emulate Ollama-native
+`/api/*` endpoints.
+
+FastFlow's Qwen3.5 9B model supports vision. `prompt` accepts PNG/JPEG images and can
+render PDF pages to PNG for vision input. Text PDFs can be extracted locally with
+Poppler.
+
+Repository-aware commands can use the optional workspace overlay:
+
+```bash
+LLM_FASTFLOW_WORKSPACE="$PWD" \
+  docker compose -f compose.yml -f compose.workspace.yml up -d
+```
+
+The workspace defaults to read-only. Set `LLM_FASTFLOW_WORKSPACE_MODE=rw` only for
+commands such as `ai-commit --yes` that intentionally mutate Git state.
+
 ## OpenAI-compatible API
 
 List models:
@@ -196,7 +226,8 @@ LocalDevStack should treat this as the NPU runtime:
 ```text
 runtime:   npu
 service:   llm-fastflow
-internal:  http://llm-fastflow:52625/v1
+internal standalone: http://llm-fastflow:52625/v1
+LocalDevStack common identity: http://llm:11434/v1
 device:    /dev/accel/accel0
 model:     qwen3.5:9b
 ```
