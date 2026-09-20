@@ -82,6 +82,32 @@ grep -Fq 'FASTFLOW_BASE_IMAGE=' .github/workflows/check.yml
 grep -Fq 'timeout-minutes: 60' .github/workflows/check.yml
 pass "current-upstream CI policy"
 
+test -f docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+grep -Fq 'fastflow-1.0/npu-runtime' docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+grep -Fq 'qwen3.5:9b' docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+pass "authoritative implementation plan"
+
+grep -Fq 'workflow_dispatch:' .github/workflows/docker.publish.yml
+grep -Fq 'releases/latest' .github/workflows/docker.publish.yml
+grep -Fq 'publish_immutable' .github/workflows/docker.publish.yml
+grep -Fq 'Refusing to overwrite immutable release tag' .github/workflows/docker.publish.yml
+grep -Fq 'platforms: linux/amd64' .github/workflows/docker.publish.yml
+grep -Fq 'provenance: mode=max' .github/workflows/docker.publish.yml
+grep -Fq 'sbom: true' .github/workflows/docker.publish.yml
+grep -Fq 'Verify published runtime by digest' .github/workflows/docker.publish.yml
+if grep -Fq 'platforms: linux/amd64,linux/arm64' .github/workflows/docker.publish.yml; then
+  fail "arm64 publication must not be enabled without a native FastFlow/XDNA2 gate"
+fi
+pass "release publication policy"
+
+if grep -R -nF '/var/run/docker.sock' Dockerfile compose.yml scripts; then
+  fail "FastFlow provider must not access the Docker socket"
+fi
+if grep -R -nE -- '--privileged|privileged:[[:space:]]*true' Dockerfile compose.yml scripts; then
+  fail "FastFlow provider must not require privileged mode"
+fi
+pass "provider trust boundary"
+
 fake_flm="$(mktemp)"
 trap 'rm -f "$fake_flm"' EXIT
 cat >"$fake_flm" <<'EOF'
