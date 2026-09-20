@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# shellcheck disable=SC2034 # consumed by sourced command modules\nVERSION="${LLM_FASTFLOW_VERSION:-dev}"
+# shellcheck disable=SC2034
+VERSION="${LLM_FASTFLOW_VERSION:-dev}"
 DEFAULT_MODEL="qwen3.5:9b"
 FLM_BIN="${FLM_BIN:-/opt/fastflowlm/flm}"
 
