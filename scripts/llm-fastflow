@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -d /usr/local/lib/llm-fastflow ]]; then
+  LIB_ROOT=/usr/local/lib/llm-fastflow
+else
+  LIB_ROOT="$SELF_DIR"
+fi
+
+# shellcheck source=scripts/lib/core.sh
+source "$LIB_ROOT/lib/core.sh"
+
+command="${1:-serve}"
+[[ $# -eq 0 ]] || shift
+
+case "$command" in
+  -h|--help) command=help ;;
+  -v|--version) command=version ;;
+esac
+
+script="$LIB_ROOT/commands/$command.sh"
+[[ -f "$script" ]] || die "unknown command '$command' (run: llm-fastflow help)"
+
+# shellcheck source=/dev/null
+source "$script"
+command_main "$@"
