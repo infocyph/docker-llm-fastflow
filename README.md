@@ -169,10 +169,14 @@ The developer commands use FastFlowLM's maintained OpenAI-compatible API
 (`/v1/models`, `/v1/chat/completions`). They do not emulate Ollama-native
 `/api/*` endpoints.
 
-Thinking stays at the model/provider default for normal developer commands. Set
-`LLM_THINK=true|false` to force it per invocation. Strict structured
-output is different: `llm-fastflow json` always sends `think:false` so reasoning
-cannot displace or contaminate the JSON response.
+Thinking stays at the model/provider default for API-backed developer commands. Set
+`LLM_THINK=true|false` to force it per invocation; the same variable is used by the
+Ollama image. Strict structured output is different: `llm-fastflow json` always sends
+`think:false` so reasoning cannot displace or contaminate the JSON response.
+
+Native `llm-fastflow chat` launches FastFlowLM's interactive CLI. Upstream FastFlowLM
+controls that session with the interactive `/think` command rather than a launch flag,
+so `LLM_THINK` does not pretend to override that native session.
 
 FastFlow's Qwen3.5 9B model supports vision. `prompt` accepts PNG/JPEG images and can
 render PDF pages to PNG for vision input. Text PDFs can be extracted locally with
