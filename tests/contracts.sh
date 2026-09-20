@@ -58,8 +58,8 @@ grep -Fq 'sha256sum -c -' Dockerfile
 grep -Fq 'ARG FASTFLOW_MODEL=qwen3.5:9b' Dockerfile
 grep -Fq 'FLM_MODEL_PATH="/models"' Dockerfile
 grep -Fq "LLM_FASTFLOW_MODEL=\"\${FASTFLOW_MODEL}\"" Dockerfile
-grep -Fq '/opt/fastflowlm/flm pull "${FASTFLOW_MODEL}"' Dockerfile
-grep -Fq '/opt/fastflowlm/flm check "${FASTFLOW_MODEL}"' Dockerfile
+grep -Fq "/opt/fastflowlm/flm pull \"\${FASTFLOW_MODEL}\"" Dockerfile
+grep -Fq "/opt/fastflowlm/flm check \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq 'EXPOSE 52625' Dockerfile
 grep -Fq 'http://127.0.0.1:52625/v1/models' Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
