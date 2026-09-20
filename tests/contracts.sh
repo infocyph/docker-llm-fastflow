@@ -114,17 +114,17 @@ printf '%s\n' '[]' >"$think_tmp_dir/images.json"
 bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/default.json"' _ "$think_tmp_dir"
 jq -e 'has("think") | not' "$think_tmp_dir/default.json" >/dev/null
 
-LLM_FASTFLOW_THINK=false bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/off.json"' _ "$think_tmp_dir"
+LLM_THINK=false bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/off.json"' _ "$think_tmp_dir"
 jq -e '.think == false' "$think_tmp_dir/off.json" >/dev/null
 
-LLM_FASTFLOW_THINK=true bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/on.json"' _ "$think_tmp_dir"
+LLM_THINK=true bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/on.json"' _ "$think_tmp_dir"
 jq -e '.think == true' "$think_tmp_dir/on.json" >/dev/null
 
-if LLM_FASTFLOW_THINK=maybe bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/bad.json"' _ "$think_tmp_dir" >/dev/null 2>&1; then
-  fail "invalid FastFlow thinking mode unexpectedly succeeded"
+if LLM_THINK=maybe bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/bad.json"' _ "$think_tmp_dir" >/dev/null 2>&1; then
+  fail "invalid common thinking mode unexpectedly succeeded"
 fi
 
-grep -Fq 'LLM_FASTFLOW_THINK=false run_text_prompt' scripts/commands/json.sh
+grep -Fq 'LLM_THINK=false run_text_prompt' scripts/commands/json.sh
 pass "FastFlow thinking control and JSON no-thinking contract"
 
 fake_flm="$(mktemp)"
