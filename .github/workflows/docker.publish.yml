@@ -66,7 +66,6 @@ jobs:
             fi
           fi
 
-          [[ -n "$RELEASE_TAG" ]]
           [[ -n "$RELEASE_TAG" ]] || {
             echo 'No published release source found.' >&2
             exit 1
@@ -275,8 +274,21 @@ jobs:
             ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}:${verify_tag}"
             found="$(docker buildx imagetools inspect "$ref" | awk '/^Digest:/ {print $2; exit}')"
             [[ "$found" == "$DIGEST" ]]
-            docker pull --platform linux/amd64 "${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}" >/dev/null
+
+            digest_ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+            docker pull --platform linux/amd64 "$digest_ref" >/dev/null
+            [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$digest_ref")" == 'linux/amd64' ]]
           done
+
+      - name: Verify published runtime by digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
+          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
+          LLM_FASTFLOW_VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+          bash .automation/scripts/ci/image-smoke.sh "$image"
 
       - name: Summarize
         env:
