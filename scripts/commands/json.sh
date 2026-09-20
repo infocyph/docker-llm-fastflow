@@ -25,7 +25,7 @@ command_main() {
     instruction+=$'\nThe response must conform to this JSON Schema:\n'"$schema"
   fi
 
-  response="$(LLM_FASTFLOW_THINK=false run_text_prompt "$model" "$instruction" "$prompt")"
+  response="$(LLM_THINK=false run_text_prompt "$model" "$instruction" "$prompt")"
   if ! jq -e . >/dev/null 2>&1 <<<"$response"; then
     die "FastFlowLM JSON command returned invalid JSON"
   fi
