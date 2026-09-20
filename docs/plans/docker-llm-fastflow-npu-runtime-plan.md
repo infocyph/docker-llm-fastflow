@@ -330,11 +330,22 @@ Must verify:
 - presence of `qwen3.5:9b` in the resolved upstream model catalog;
 - Debian stable base resolution to a digest;
 - Dockerfile BuildKit checks;
-- full provider-image build;
-- baked model integrity;
+- load/smoke of the lightweight `fastflow-runtime` stage;
+- execution of the full `final` baked-model build contract without exporting the multi-gigabyte image on every PR;
+- baked model pull/check inside the independent `fastflow-model` stage;
 - FastFlow version execution;
 - XRT/XDNA shared-library dependency closure;
 - image metadata/environment contract.
+
+The production Dockerfile uses three reusable stages after the base:
+
+```text
+fastflow-model   -> downloads/checks the HX 370 default model
+fastflow-runtime -> small provider runtime used for CI smoke
+final            -> runtime + baked model, used for publication/runtime
+```
+
+Normal repository/image-version changes must not invalidate the heavy model stage.
 
 ### Real NPU gate
 
@@ -387,7 +398,8 @@ Publication must:
 - resolve current stable FastFlowLM;
 - verify upstream asset digest;
 - resolve Debian stable to a digest;
-- build one validated candidate;
+- reuse the main validation cache when available;
+- build one validated final candidate;
 - publish Docker Hub and GHCR;
 - keep immutable release tags immutable;
 - allow moving stable `:latest`;
