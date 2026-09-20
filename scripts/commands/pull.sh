@@ -6,6 +6,6 @@ command_main() {
     model="$1"
     shift
   fi
-  model="$(resolve_model "$model")
+  model="$(resolve_model "$model")"
   exec_flm pull "$model" "$@"
 }

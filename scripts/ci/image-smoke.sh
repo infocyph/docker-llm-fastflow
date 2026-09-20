@@ -16,6 +16,7 @@ IFS= read -r wrapper_version <<<"$wrapper_output"
 
 docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check "$expected_model" >/dev/null
 
+# shellcheck disable=SC2016
 image_model="$(docker run --rm --entrypoint /bin/sh "$image" -c 'printf %s "$LLM_FASTFLOW_MODEL"')"
 [[ "$image_model" == "$expected_model" ]]
 

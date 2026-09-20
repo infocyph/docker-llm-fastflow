@@ -67,22 +67,36 @@ jobs:
           fi
 
           [[ -n "$RELEASE_TAG" ]]
+          [[ -n "$RELEASE_TAG" ]] || {
+            echo 'No published release source found.' >&2
+            exit 1
+          }
+
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
-          [[ "$(jq -r .draft <<<"$release_json")" != true ]] || {
+          is_draft="$(jq -r '.draft' <<<"$release_json")"
+          is_prerelease="$(jq -r '.prerelease' <<<"$release_json")"
+
+          [[ "$is_draft" != true ]] || {
             echo "Refusing draft release source: $RELEASE_TAG" >&2
             exit 1
           }
 
-          if [[ "$(jq -r .prerelease <<<"$release_json")" == true ]]; then
+          if [[ "$is_prerelease" == true ]]; then
             PUBLISH_LATEST_TAG=false
           else
             PUBLISH_LATEST_TAG=true
+          fi
+
+          if [[ "$EVENT_NAME" == workflow_dispatch && "$is_prerelease" == true && "$PUBLISH_RELEASE_TAG" != true ]]; then
+            echo 'A prerelease cannot move stable latest tags. Set publish_immutable=true to publish only its immutable tag.' >&2
+            exit 1
           fi
 
           {
             echo "RELEASE_TAG=$RELEASE_TAG"
             echo "PUBLISH_RELEASE_TAG=$PUBLISH_RELEASE_TAG"
             echo "PUBLISH_LATEST_TAG=$PUBLISH_LATEST_TAG"
+            echo "SOURCE_IS_PRERELEASE=$is_prerelease"
           } >> "$GITHUB_ENV"
 
       - name: Resolve current stable FastFlowLM release
@@ -271,15 +285,16 @@ jobs:
           {
             echo '## Published FastFlowLM image'
             echo
-            echo "- Source release: `$RELEASE_TAG`"
-            echo "- Source revision: `$SOURCE_SHA`"
-            echo "- FastFlowLM: `$FASTFLOWLM_VERSION`"
-            echo "- FastFlowLM asset: `$FASTFLOWLM_ASSET`"
-            echo "- Debian base digest: `$FASTFLOW_BASE_DIGEST`"
-            echo "- Default model: `$FASTFLOW_MODEL`"
+            printf -- '- Source release: `%s`\n' "$RELEASE_TAG"
+            printf -- '- Source revision: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Source prerelease: `%s`\n' "$SOURCE_IS_PRERELEASE"
+            printf -- '- FastFlowLM: `%s`\n' "$FASTFLOWLM_VERSION"
+            printf -- '- FastFlowLM asset: `%s`\n' "$FASTFLOWLM_ASSET"
+            printf -- '- Debian base digest: `%s`\n' "$FASTFLOW_BASE_DIGEST"
+            printf -- '- Default model: `%s`\n' "$FASTFLOW_MODEL"
             echo '- Accelerator: AMD XDNA2 NPU'
             echo '- Platform: `linux/amd64`'
-            echo "- Digest: `$DIGEST`"
+            printf -- '- Digest: `%s`\n' "$DIGEST"
             echo '- BuildKit provenance: `mode=max`'
             echo '- BuildKit SBOM: enabled'
           } >> "$GITHUB_STEP_SUMMARY"

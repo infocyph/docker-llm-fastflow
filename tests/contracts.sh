@@ -50,7 +50,7 @@ grep -q 'hard: -1' compose.yml
 pass "Compose NPU contract"
 
 grep -Fq 'ARG FASTFLOW_BASE_IMAGE=debian:stable-slim' Dockerfile
-grep -Fq 'FROM ${FASTFLOW_BASE_IMAGE}' Dockerfile
+grep -Fq "FROM \${FASTFLOW_BASE_IMAGE}" Dockerfile
 grep -Fq 'FASTFLOWLM_VERSION=1.0.6' Dockerfile
 grep -Fq "fastflowlm_\${FASTFLOWLM_VERSION}_linux.tar.gz" Dockerfile
 grep -Fq 'sha256sum -c -' Dockerfile
