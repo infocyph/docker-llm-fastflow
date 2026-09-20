@@ -101,7 +101,7 @@ docker compose ps
 docker compose logs -f llm-fastflow
 ```
 
-The first use of a model may download the FastFlow-optimized model artifacts into the persistent model volume.
+The default `qwen3.5:9b` FastFlow-optimized model is baked into the image. On first creation of the named volume, Docker seeds `/models` from the image, so the default runtime does not need a first-run model download. Additional models are downloaded into the persistent volume as needed.
 
 ## Persistent model state
 
@@ -219,7 +219,7 @@ Local builds use the current verified FastFlowLM release asset:
 docker build -t llm-fastflow:local .
 ```
 
-The Dockerfile verifies the official release tarball with SHA-256 before installing it.
+The Dockerfile verifies the official release tarball with SHA-256 before installing it, then pulls and verifies the HX 370 default `qwen3.5:9b` model during the image build.
 
 Publication resolves the **current stable FastFlowLM GitHub release** at publish time and injects its version and official asset digest into the build. This keeps the moving `latest` image current without making the Dockerfile itself perform an unpinned "download latest" operation.
 
@@ -233,6 +233,7 @@ Hardware-independent CI covers:
 - Dockerfile build checks
 - official portable package checksum
 - image layout
+- baked `qwen3.5:9b` model integrity
 - FastFlowLM version execution without NPU access
 
 Real NPU validation is provided separately:
