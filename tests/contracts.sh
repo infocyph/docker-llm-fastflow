@@ -61,13 +61,105 @@ grep -Fq "LLM_FASTFLOW_MODEL=\"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm pull \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm check \"\${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq 'EXPOSE 52625' Dockerfile
-grep -Fq 'http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models' Dockerfile
+grep -Fq "http://127.0.0.1:\${FLM_SERVE_PORT:-52625}/v1/models" Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
 grep -Fqx 'CMD ["serve"]' Dockerfile
 grep -Fqx 'STOPSIGNAL SIGINT' Dockerfile
 grep -Fq 'libxrt_driver_xdna.so.2' Dockerfile
 grep -Fq 'poppler-utils' Dockerfile
-grep -Fq 'git \' Dockerfile
+grep -Eq '^[[:space:]]+git[[:space:]]+\\\\
+grep -Fq 'COPY scripts/prompts /usr/local/lib/llm-fastflow/prompts' Dockerfile
+if grep -Fq 'amdxdna-dkms' Dockerfile; then
+  fail "host kernel driver must not be installed inside the image"
+fi
+pass "Dockerfile provider boundary"
+
+grep -Fq '/dev/accel/accel0' README.md
+grep -Fq 'qwen3.5:9b' README.md
+grep -Fq 'qwen3:14b' README.md
+pass "documentation contract"
+
+grep -Fq 'branches: [main]' .github/workflows/check.yml
+grep -Fq 'releases/latest' .github/workflows/check.yml
+grep -Fq 'FASTFLOW_BASE_IMAGE=' .github/workflows/check.yml
+grep -Fq 'timeout-minutes: 60' .github/workflows/check.yml
+grep -Fq 'target: fastflow-runtime' .github/workflows/check.yml
+grep -Fq 'FASTFLOW_EXPECT_BAKED_MODEL: "0"' .github/workflows/check.yml
+grep -Fq 'Build final baked image contract' .github/workflows/check.yml
+grep -Fq "github.event_name == 'push'" .github/workflows/check.yml
+pass "current-upstream and staged-image CI policy"
+
+test -f docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+grep -Fq 'fastflow-1.0/npu-runtime' docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+grep -Fq 'qwen3.5:9b' docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+pass "authoritative implementation plan"
+
+grep -Fq 'workflow_dispatch:' .github/workflows/docker.publish.yml
+grep -Fq 'releases/latest' .github/workflows/docker.publish.yml
+grep -Fq 'publish_immutable' .github/workflows/docker.publish.yml
+grep -Fq 'Refusing to overwrite immutable release tag' .github/workflows/docker.publish.yml
+grep -Fq 'platforms: linux/amd64' .github/workflows/docker.publish.yml
+grep -Fq 'provenance: mode=max' .github/workflows/docker.publish.yml
+grep -Fq 'sbom: true' .github/workflows/docker.publish.yml
+grep -Fq 'Verify published runtime by digest' .github/workflows/docker.publish.yml
+grep -Fq 'type=gha,scope=fastflow-check' .github/workflows/docker.publish.yml
+if grep -Fq 'platforms: linux/amd64,linux/arm64' .github/workflows/docker.publish.yml; then
+  fail "arm64 publication must not be enabled without a native FastFlow/XDNA2 gate"
+fi
+pass "release publication policy"
+
+if grep -R -nF '/var/run/docker.sock' Dockerfile compose.yml scripts; then
+  fail "FastFlow provider must not access the Docker socket"
+fi
+if grep -R -nE -- '--privileged|privileged:[[:space:]]*true' Dockerfile compose.yml scripts; then
+  fail "FastFlow provider must not require privileged mode"
+fi
+pass "provider trust boundary"
+
+fake_flm="$(mktemp)"
+trap 'rm -f "$fake_flm"' EXIT
+cat >"$fake_flm" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*"
+EOF
+chmod +x "$fake_flm"
+
+pull_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b bash -c 'source scripts/lib/core.sh; source scripts/commands/pull.sh; command_main --force')"
+[[ "$pull_args" == 'pull qwen3.5:9b --force' ]] || fail "pull flags were mistaken for a model: $pull_args"
+
+serve_args="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --cors 1')"
+[[ "$serve_args" == 'serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 1' ]] || fail "serve flags were mistaken for a model: $serve_args"
+
+serve_override="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main --host 127.0.0.1 --port 6000 --cors 1')"
+[[ "$serve_override" == 'serve qwen3.5:9b --host 127.0.0.1 --port 6000 --cors 1' ]] ||
+  fail "explicit FastFlow server options were duplicated or overwritten: $serve_override"
+
+serve_default="$(FLM_BIN="$fake_flm" LLM_FASTFLOW_MODEL=qwen3.5:9b FLM_HOST=0.0.0.0 FLM_SERVE_PORT=52625 FLM_CORS=0 bash -c 'source scripts/lib/core.sh; source scripts/commands/serve.sh; command_main')"
+[[ "$serve_default" == 'serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 0' ]] ||
+  fail "FastFlow server defaults drifted: $serve_default"
+
+pass "optional model arguments and native FastFlow server options are preserved"
+
+for file in scripts/lib/openai.sh scripts/lib/attachments.sh scripts/lib/commit.sh \
+  scripts/commands/ask.sh scripts/commands/chat.sh scripts/commands/prompt.sh \
+  scripts/commands/code.sh scripts/commands/review.sh scripts/commands/json.sh \
+  scripts/commands/ai-commit.sh scripts/commands/api.sh scripts/prompts/ai-commit.txt; do
+  [[ -s "$file" ]] || fail "developer parity file missing: $file"
+done
+
+grep -Fq '/v1/chat/completions' scripts/lib/openai.sh
+grep -Fq '/v1/models' scripts/lib/openai.sh
+grep -Fq 'data:image/png;base64,' scripts/lib/openai.sh
+grep -Fq 'data:image/jpeg;base64,' scripts/lib/openai.sh
+if grep -R -nE '/api/(chat|generate|tags)' scripts/lib scripts/commands; then
+  fail "FastFlow developer CLI must not depend on Ollama-native API routes"
+fi
+
+workspace_json="$(LLM_FASTFLOW_WORKSPACE="$ROOT" docker compose -f compose.yml -f compose.workspace.yml config --format json)"
+jq -e '.services["llm-fastflow"].working_dir == "/workspace"' <<<"$workspace_json" >/dev/null
+jq -e '.services["llm-fastflow"].volumes | any(.target == "/workspace" and .read_only == true)' <<<"$workspace_json" >/dev/null
+pass "developer CLI and workspace parity contract"
+ Dockerfile
 grep -Fq 'COPY scripts/prompts /usr/local/lib/llm-fastflow/prompts' Dockerfile
 if grep -Fq 'amdxdna-dkms' Dockerfile; then
   fail "host kernel driver must not be installed inside the image"
