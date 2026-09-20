@@ -10,7 +10,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        git \
         jq \
+        poppler-utils \
         libdrm2 \
         libgomp1 \
         libstdc++6 \
@@ -63,6 +65,7 @@ ARG LLM_FASTFLOW_VERSION=dev
 COPY scripts/llm-fastflow /usr/local/bin/llm-fastflow
 COPY scripts/lib /usr/local/lib/llm-fastflow/lib
 COPY scripts/commands /usr/local/lib/llm-fastflow/commands
+COPY scripts/prompts /usr/local/lib/llm-fastflow/prompts
 
 RUN chmod 0755 /usr/local/bin/llm-fastflow \
     && chmod -R a+rX /usr/local/lib/llm-fastflow
@@ -87,7 +90,7 @@ LABEL org.opencontainers.image.source="https://github.com/infocyph/docker-llm-fa
 EXPOSE 52625
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD curl --connect-timeout 2 -fsS http://127.0.0.1:52625/v1/models >/dev/null || exit 1
+    CMD curl --connect-timeout 2 -fsS "http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models" >/dev/null || exit 1
 
 STOPSIGNAL SIGINT
 
