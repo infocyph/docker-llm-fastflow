@@ -161,6 +161,10 @@ grep -Fq 'sbom: true' .github/workflows/docker.publish.yml
 grep -Fq 'Verify published runtime metadata' .github/workflows/docker.publish.yml
 grep -Fq -- "--format '{{json .Manifest}}'" .github/workflows/docker.publish.yml
 grep -Fq -- "--format '{{json (index .Image \"linux/amd64\")}}'" .github/workflows/docker.publish.yml
+grep -Fq -- '--arg model "$FASTFLOW_MODEL"' .github/workflows/docker.publish.yml
+grep -Fq -- '--arg version "$RELEASE_TAG"' .github/workflows/docker.publish.yml
+grep -Fq 'index("LLM_FASTFLOW_MODEL=" + $model)' .github/workflows/docker.publish.yml
+grep -Fq 'index("LLM_FASTFLOW_VERSION=" + $version)' .github/workflows/docker.publish.yml
 grep -Fq 'type=gha,scope=fastflow-check' .github/workflows/docker.publish.yml
 grep -Fq 'cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true' .github/workflows/docker.publish.yml
 if grep -Fq "docker pull --platform linux/amd64 \"\$digest_ref\"" .github/workflows/docker.publish.yml; then
