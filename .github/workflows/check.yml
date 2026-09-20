@@ -113,6 +113,6 @@ jobs:
             FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
             LLM_FASTFLOW_VERSION=ci-${{ github.sha }}
           cache-from: type=gha,scope=fastflow-check
-          cache-to: type=gha,mode=max,scope=fastflow-check
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=fastflow-check' || '' }}
           provenance: false
           sbom: false
