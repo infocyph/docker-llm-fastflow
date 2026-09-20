@@ -25,6 +25,22 @@ resolve_model() {
   fi
 }
 
+args_have_option() {
+  local short="${1:-}" long="${2:-}"
+  shift 2 || true
+
+  local arg
+  for arg in "$@"; do
+    if [[ -n "$short" && "$arg" == "$short" ]]; then
+      return 0
+    fi
+    if [[ -n "$long" && ( "$arg" == "$long" || "$arg" == "$long="* ) ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 exec_flm() {
   require_flm
   exec "$FLM_BIN" "$@"
