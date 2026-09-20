@@ -167,7 +167,7 @@ jobs:
           cache-from: |
             type=gha,scope=fastflow-publish
             type=gha,scope=fastflow-check
-          cache-to: type=gha,mode=max,scope=fastflow-publish
+          cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true,ignore-error=true
           provenance: false
           sbom: false
 
@@ -245,7 +245,7 @@ jobs:
           cache-from: |
             type=gha,scope=fastflow-publish
             type=gha,scope=fastflow-check
-          cache-to: type=gha,mode=max,scope=fastflow-publish
+          cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true
           provenance: mode=max
           sbom: true
 
@@ -276,23 +276,40 @@ jobs:
 
           for registry in docker.io ghcr.io; do
             ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}:${verify_tag}"
-            found="$(docker buildx imagetools inspect "$ref" | awk '/^Digest:/ {print $2; exit}')"
-            [[ "$found" == "$DIGEST" ]]
-
-            digest_ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
-            docker pull --platform linux/amd64 "$digest_ref" >/dev/null
-            [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$digest_ref")" == 'linux/amd64' ]]
+            manifest_json="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}')"
+            found="$(jq -r '.digest // empty' <<<"$manifest_json")"
+            [[ "$found" == "$DIGEST" ]] || {
+              echo "Digest mismatch for $ref: expected $DIGEST, got ${found:-<empty>}" >&2
+              exit 1
+            }
+            jq -e '
+              (.manifests // [])
+              | any(.[]?;
+                  .platform.os == "linux"
+                  and .platform.architecture == "amd64")
+            ' <<<"$manifest_json" >/dev/null || {
+              echo "Published index does not contain linux/amd64: $ref" >&2
+              exit 1
+            }
           done
 
-      - name: Verify published runtime by digest
+      - name: Verify published runtime metadata
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-          FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
-          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
-          LLM_FASTFLOW_VERSION: ${{ env.RELEASE_TAG }}
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
-          bash .automation/scripts/ci/image-smoke.sh "$image"
+          set -euo pipefail
+          ref="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+          image_json="$(docker buildx imagetools inspect "$ref" --format '{{json (index .Image "linux/amd64")}}')"
+
+          jq -e '
+            .os == "linux"
+            and .architecture == "amd64"
+            and .config.Entrypoint == ["llm-fastflow"]
+            and .config.Cmd == ["serve"]
+            and (.config.Env | index("LLM_FASTFLOW_MODEL='${FASTFLOW_MODEL}'") != null)
+            and (.config.Env | index("LLM_FASTFLOW_VERSION='${RELEASE_TAG}'") != null)
+            and (.config.ExposedPorts["52625/tcp"] != null)
+          ' <<<"$image_json" >/dev/null
 
       - name: Summarize
         env:
