@@ -56,10 +56,21 @@ encode_images_json() {
   rm -f "$tmp"
 }
 
+normalize_think_mode() {
+  case "${1:-}" in
+    "") printf '%s' "" ;;
+    1|true|TRUE|yes|YES|on|ON) printf '%s' true ;;
+    0|false|FALSE|no|NO|off|OFF) printf '%s' false ;;
+    *) die "LLM_THINK must be true/false when set" ;;
+  esac
+}
+
 build_chat_payload() {
   require_command jq
   local model="$1" system_file="$2" content_file="$3" images_file="$4" output_file="$5"
-  jq -n     --arg model "$model"     --rawfile system "$system_file"     --rawfile content "$content_file"     --slurpfile images "$images_file"     '{
+  local think
+  think="$(normalize_think_mode "${LLM_THINK:-}")" || return $?
+  jq -n     --arg model "$model"     --rawfile system "$system_file"     --rawfile content "$content_file"     --slurpfile images "$images_file"     --arg think "$think"     '{
       model: $model,
       messages:
         ((if ($system | length) > 0 then [{role:"system",content:$system}] else [] end)
@@ -73,7 +84,10 @@ build_chat_payload() {
                end)
           }]),
       stream:false
-    }' >"$output_file"
+    }
+    | if $think == "" then .
+      else . + {think: ($think == "true")}
+      end' >"$output_file"
 }
 
 run_chat_prompt() {

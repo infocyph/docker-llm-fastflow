@@ -49,6 +49,7 @@ fi
 if grep -qE '^[[:space:]]*container_name:' compose.yml; then
   fail "fixed container_name is not allowed"
 fi
+grep -Fq "LLM_THINK: \${LLM_THINK:-}" compose.yml
 pass "Compose NPU contract"
 
 workspace_json="$(LLM_FASTFLOW_WORKSPACE="$ROOT" docker compose -f compose.yml -f compose.workspace.yml config --format json)"
@@ -104,6 +105,28 @@ printf 'png-test' >"$img_tmp"
 bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; encode_images_json "$1" "$2"' _ "$uri_tmp" "$img_tmp"
 jq -e '(length == 1) and (.[0] | startswith("data:image/png;base64,"))' "$uri_tmp" >/dev/null
 pass "OpenAI vision data URI contract"
+
+think_tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$think_tmp_dir" "$uri_tmp" "$img_tmp" "${fake_flm:-}"' EXIT
+printf '%s' 'system' >"$think_tmp_dir/system.txt"
+printf '%s' 'prompt' >"$think_tmp_dir/content.txt"
+printf '%s\n' '[]' >"$think_tmp_dir/images.json"
+
+bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/default.json"' _ "$think_tmp_dir"
+jq -e 'has("think") | not' "$think_tmp_dir/default.json" >/dev/null
+
+LLM_THINK=false bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/off.json"' _ "$think_tmp_dir"
+jq -e '.think == false' "$think_tmp_dir/off.json" >/dev/null
+
+LLM_THINK=true bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/on.json"' _ "$think_tmp_dir"
+jq -e '.think == true' "$think_tmp_dir/on.json" >/dev/null
+
+if LLM_THINK=maybe bash -c 'source scripts/lib/core.sh; source scripts/lib/openai.sh; build_chat_payload test "$1/system.txt" "$1/content.txt" "$1/images.json" "$1/bad.json"' _ "$think_tmp_dir" >/dev/null 2>&1; then
+  fail "invalid common thinking mode unexpectedly succeeded"
+fi
+
+grep -Fq 'LLM_THINK=false run_text_prompt' scripts/commands/json.sh
+pass "FastFlow thinking control and JSON no-thinking contract"
 
 fake_flm="$(mktemp)"
 cat >"$fake_flm" <<'EOF'
