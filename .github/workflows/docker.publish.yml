@@ -164,7 +164,9 @@ jobs:
             FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
             FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
             LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
-          cache-from: type=gha,scope=fastflow-publish
+          cache-from: |
+            type=gha,scope=fastflow-publish
+            type=gha,scope=fastflow-check
           cache-to: type=gha,mode=max,scope=fastflow-publish
           provenance: false
           sbom: false
@@ -240,7 +242,9 @@ jobs:
             LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=fastflow-publish
+          cache-from: |
+            type=gha,scope=fastflow-publish
+            type=gha,scope=fastflow-check
           cache-to: type=gha,mode=max,scope=fastflow-publish
           provenance: mode=max
           sbom: true
