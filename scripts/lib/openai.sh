@@ -69,7 +69,7 @@ build_chat_payload() {
   require_command jq
   local model="$1" system_file="$2" content_file="$3" images_file="$4" output_file="$5"
   local think
-  think="$(normalize_think_mode "${LLM_THINK:-}")"
+  think="$(normalize_think_mode "${LLM_THINK:-}")" || return $?
   jq -n     --arg model "$model"     --rawfile system "$system_file"     --rawfile content "$content_file"     --slurpfile images "$images_file"     --arg think "$think"     '{
       model: $model,
       messages:
