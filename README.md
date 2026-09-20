@@ -9,7 +9,10 @@ It is intentionally separate from `docker-llm-ollama`:
 
 - **FastFlowLM** owns AMD XDNA2 NPU inference.
 - **Ollama** remains the CPU, NVIDIA GPU, and AMD ROCm GPU provider.
-- LocalDevStack can choose FastFlow automatically when a supported NPU is available.
+- The two provider services are **mutually exclusive** for one LocalDevStack runtime.
+- `llm-fastflow` and `llm-ollama` **never run at the same time** in the selected architecture.
+- LocalDevStack chooses FastFlow automatically when a supported NPU is available.
+- The external/common `llm` identity points to whichever single provider is active.
 
 ## Runtime contract
 
@@ -241,7 +244,7 @@ AMD ROCm GPU        -> Ollama
 otherwise           -> Ollama CPU
 ```
 
-Provider choice is an internal implementation detail. The end user should normally select or accept a runtime, not manage contradictory provider/runtime settings.
+Provider choice is an internal implementation detail. Only one provider is started for a stack: FastFlow on a supported XDNA2 NPU, otherwise Ollama on NVIDIA/ROCm/CPU. The common `llm` route therefore needs no load balancing or failover between simultaneously running providers; it is simply an alias for the selected one.
 
 ## Image build
 
