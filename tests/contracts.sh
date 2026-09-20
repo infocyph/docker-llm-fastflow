@@ -67,7 +67,7 @@ grep -Fq "LLM_FASTFLOW_MODEL=\"${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm pull \"${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq "/opt/fastflowlm/flm check \"${FASTFLOW_MODEL}\"" Dockerfile
 grep -Fq 'EXPOSE 52625' Dockerfile
-grep -Fq 'http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models' Dockerfile
+grep -Fq "http://127.0.0.1:\${FLM_SERVE_PORT:-52625}/v1/models" Dockerfile
 grep -Fqx 'ENTRYPOINT ["llm-fastflow"]' Dockerfile
 grep -Fqx 'CMD ["serve"]' Dockerfile
 grep -Fqx 'STOPSIGNAL SIGINT' Dockerfile
