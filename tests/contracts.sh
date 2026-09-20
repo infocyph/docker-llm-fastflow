@@ -80,7 +80,10 @@ grep -Fq 'branches: [main]' .github/workflows/check.yml
 grep -Fq 'releases/latest' .github/workflows/check.yml
 grep -Fq 'FASTFLOW_BASE_IMAGE=' .github/workflows/check.yml
 grep -Fq 'timeout-minutes: 60' .github/workflows/check.yml
-pass "current-upstream CI policy"
+grep -Fq 'target: fastflow-runtime' .github/workflows/check.yml
+grep -Fq 'FASTFLOW_EXPECT_BAKED_MODEL: "0"' .github/workflows/check.yml
+grep -Fq 'Build final baked image contract' .github/workflows/check.yml
+pass "current-upstream and staged-image CI policy"
 
 test -f docs/plans/docker-llm-fastflow-npu-runtime-plan.md
 grep -Fq 'fastflow-1.0/npu-runtime' docs/plans/docker-llm-fastflow-npu-runtime-plan.md
@@ -95,6 +98,7 @@ grep -Fq 'platforms: linux/amd64' .github/workflows/docker.publish.yml
 grep -Fq 'provenance: mode=max' .github/workflows/docker.publish.yml
 grep -Fq 'sbom: true' .github/workflows/docker.publish.yml
 grep -Fq 'Verify published runtime by digest' .github/workflows/docker.publish.yml
+grep -Fq 'type=gha,scope=fastflow-check' .github/workflows/docker.publish.yml
 if grep -Fq 'platforms: linux/amd64,linux/arm64' .github/workflows/docker.publish.yml; then
   fail "arm64 publication must not be enabled without a native FastFlow/XDNA2 gate"
 fi
