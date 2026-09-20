@@ -87,6 +87,7 @@ The standalone Compose file:
 - gives the container unlimited memlock
 - persists models in `llm-fastflow-models`
 - exposes the API only on loopback
+- keeps FastFlow CORS disabled by default
 
 Default endpoint:
 
@@ -250,6 +251,9 @@ That test requires an XDNA2 host and verifies:
 - server health
 - `/v1/models`
 - real NPU chat inference
+- named-volume persistence across container recreation
+- restart health
+- the image SIGINT stop contract
 
 GitHub-hosted runners do not expose an AMD XDNA2 NPU, so publication CI intentionally does not fake that hardware gate.
 
@@ -281,7 +285,19 @@ The image intentionally has:
 - no automatic workspace mount
 - update checks disabled inside the fixed container runtime
 
-The only special hardware access is the explicitly passed XDNA2 accelerator device. Docker stop uses `SIGINT`, matching FastFlowLM's graceful server shutdown path.
+The only special hardware access is the explicitly passed XDNA2 accelerator device. Docker stop uses `SIGINT`, matching FastFlowLM's Linux signal path.
+
+FastFlow's internal server binds `0.0.0.0` so other containers can reach it, while the standalone Compose publication remains loopback-only. The wrapper also defaults `--cors 0`; callers can explicitly override native FastFlow server flags when required.
+
+## Implementation plan
+
+The authoritative implementation and release-readiness plan is:
+
+```text
+docs/plans/docker-llm-fastflow-npu-runtime-plan.md
+```
+
+All remaining work stays on `fastflow-1.0/npu-runtime`.
 
 ## Upstream
 
