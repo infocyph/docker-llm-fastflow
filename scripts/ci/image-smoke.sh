@@ -5,6 +5,7 @@ image="${1:?usage: image-smoke.sh <image>}"
 expected_flm="${FASTFLOWLM_VERSION:-1.0.6}"
 expected_wrapper="${LLM_FASTFLOW_VERSION:-dev}"
 expected_model="${FASTFLOW_MODEL:-qwen3.5:9b}"
+expect_baked_model="${FASTFLOW_EXPECT_BAKED_MODEL:-1}"
 
 flm_output="$(docker run --rm --entrypoint /opt/fastflowlm/flm "$image" version)"
 IFS= read -r flm_version <<<"$flm_output"
@@ -14,7 +15,9 @@ wrapper_output="$(docker run --rm --entrypoint llm-fastflow "$image" version)"
 IFS= read -r wrapper_version <<<"$wrapper_output"
 [[ "$wrapper_version" == "llm-fastflow ${expected_wrapper}" ]]
 
-docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check "$expected_model" >/dev/null
+if [[ "$expect_baked_model" == "1" ]]; then
+  docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check "$expected_model" >/dev/null
+fi
 
 # shellcheck disable=SC2016
 image_model="$(docker run --rm --entrypoint /bin/sh "$image" -c 'printf %s "$LLM_FASTFLOW_MODEL"')"
