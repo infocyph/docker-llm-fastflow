@@ -1,0 +1,316 @@
+name: Docker Publish
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Repository release tag to rebuild; blank selects latest stable
+        required: false
+        default: ''
+        type: string
+      publish_immutable:
+        description: Also publish the immutable repository release tag
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+
+    steps:
+      - name: Check out validation tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .automation
+          persist-credentials: false
+
+      - name: Resolve repository release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_SOURCE_TAG: ${{ inputs.source_tag }}
+          MANUAL_PUBLISH_IMMUTABLE: ${{ inputs.publish_immutable }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == release ]]; then
+            RELEASE_TAG="$EVENT_RELEASE_TAG"
+            PUBLISH_RELEASE_TAG=true
+          elif [[ "$EVENT_NAME" == workflow_dispatch && -n "$MANUAL_SOURCE_TAG" ]]; then
+            RELEASE_TAG="$MANUAL_SOURCE_TAG"
+            PUBLISH_RELEASE_TAG="${MANUAL_PUBLISH_IMMUTABLE:-false}"
+          else
+            RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
+            if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+              PUBLISH_RELEASE_TAG="${MANUAL_PUBLISH_IMMUTABLE:-false}"
+            else
+              PUBLISH_RELEASE_TAG=false
+            fi
+          fi
+
+          [[ -n "$RELEASE_TAG" ]] || {
+            echo 'No published release source found.' >&2
+            exit 1
+          }
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          is_draft="$(jq -r '.draft' <<<"$release_json")"
+          is_prerelease="$(jq -r '.prerelease' <<<"$release_json")"
+
+          [[ "$is_draft" != true ]] || {
+            echo "Refusing draft release source: $RELEASE_TAG" >&2
+            exit 1
+          }
+
+          if [[ "$is_prerelease" == true ]]; then
+            PUBLISH_LATEST_TAG=false
+          else
+            PUBLISH_LATEST_TAG=true
+          fi
+
+          if [[ "$EVENT_NAME" == workflow_dispatch && "$is_prerelease" == true && "$PUBLISH_RELEASE_TAG" != true ]]; then
+            echo 'A prerelease cannot move stable latest tags. Set publish_immutable=true to publish only its immutable tag.' >&2
+            exit 1
+          fi
+
+          {
+            echo "RELEASE_TAG=$RELEASE_TAG"
+            echo "PUBLISH_RELEASE_TAG=$PUBLISH_RELEASE_TAG"
+            echo "PUBLISH_LATEST_TAG=$PUBLISH_LATEST_TAG"
+            echo "SOURCE_IS_PRERELEASE=$is_prerelease"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve current stable FastFlowLM release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          upstream="$(gh api repos/ROCm/FastFlowLM/releases/latest)"
+          upstream_tag="$(jq -r .tag_name <<<"$upstream")"
+          version="${upstream_tag#v}"
+          asset="fastflowlm_${version}_linux.tar.gz"
+          digest="$(jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .digest' <<<"$upstream")"
+
+          [[ "$upstream_tag" == v* ]]
+          [[ "$digest" == sha256:* ]] || {
+            echo "Missing SHA-256 digest for upstream asset: $asset" >&2
+            exit 1
+          }
+
+          {
+            echo "FASTFLOWLM_VERSION=$version"
+            echo "FASTFLOWLM_SHA256=${digest#sha256:}"
+            echo "FASTFLOWLM_ASSET=$asset"
+            echo "FASTFLOW_MODEL=qwen3.5:9b"
+            echo "IMAGE_NAME=llm-fastflow"
+            echo "CANDIDATE_IMAGE=llm-fastflow:publish-candidate"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out exact repository release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          path: .release
+          persist-credentials: false
+
+      - name: Capture source revision
+        run: echo "SOURCE_SHA=$(git -C .release rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve current Debian stable base
+        run: |
+          set -euo pipefail
+          base=debian:stable-slim
+          inspect="$(docker buildx imagetools inspect "$base")"
+          digest="$(awk '/^Digest:/ {print $2; exit}' <<<"$inspect")"
+          [[ "$digest" == sha256:* ]]
+          {
+            echo "FASTFLOW_BASE_IMAGE=${base}@${digest}"
+            echo "FASTFLOW_BASE_DIGEST=$digest"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release candidate
+        uses: docker/build-push-action@v7
+        with:
+          context: .release
+          platforms: linux/amd64
+          load: true
+          pull: true
+          push: false
+          tags: llm-fastflow:publish-candidate
+          build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
+            FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
+            FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
+            LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
+          cache-from: |
+            type=gha,scope=fastflow-publish
+            type=gha,scope=fastflow-check
+          cache-to: type=gha,mode=max,scope=fastflow-publish
+          provenance: false
+          sbom: false
+
+      - name: Validate candidate without NPU
+        env:
+          FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
+          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
+          LLM_FASTFLOW_VERSION: ${{ env.RELEASE_TAG }}
+        run: bash .automation/scripts/ci/image-smoke.sh "$CANDIDATE_IMAGE"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Enforce immutable release tag
+        if: env.PUBLISH_RELEASE_TAG == 'true'
+        run: |
+          set -euo pipefail
+          assert_absent() {
+            local image="$1" output
+            if output="$(docker buildx imagetools inspect "$image" 2>&1)"; then
+              echo "Refusing to overwrite immutable release tag: $image" >&2
+              return 1
+            fi
+            case "$output" in
+              *'not found'*|*'manifest unknown'*|*'NAME_UNKNOWN'*) return 0 ;;
+              *) printf '%s\n' "$output" >&2; return 1 ;;
+            esac
+          }
+          assert_absent "docker.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}:${RELEASE_TAG}"
+          assert_absent "ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}:${RELEASE_TAG}"
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            docker.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }},enable=${{ env.PUBLISH_RELEASE_TAG == 'true' }}
+            type=raw,value=latest,enable=${{ env.PUBLISH_LATEST_TAG == 'true' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+            org.opencontainers.image.version=${{ env.RELEASE_TAG }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .release
+          platforms: linux/amd64
+          pull: false
+          push: true
+          build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
+            FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
+            FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
+            LLM_FASTFLOW_VERSION=${{ env.RELEASE_TAG }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: |
+            type=gha,scope=fastflow-publish
+            type=gha,scope=fastflow-check
+          cache-to: type=gha,mode=max,scope=fastflow-publish
+          provenance: mode=max
+          sbom: true
+
+      - name: Attest Docker Hub image
+        uses: actions/attest@v4
+        with:
+          subject-name: docker.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest GHCR image
+        uses: actions/attest@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Verify published digest and platform
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLISH_RELEASE_TAG" == true ]]; then
+            verify_tag="$RELEASE_TAG"
+          else
+            verify_tag=latest
+          fi
+
+          for registry in docker.io ghcr.io; do
+            ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}:${verify_tag}"
+            found="$(docker buildx imagetools inspect "$ref" | awk '/^Digest:/ {print $2; exit}')"
+            [[ "$found" == "$DIGEST" ]]
+
+            digest_ref="${registry}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+            docker pull --platform linux/amd64 "$digest_ref" >/dev/null
+            [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$digest_ref")" == 'linux/amd64' ]]
+          done
+
+      - name: Verify published runtime by digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
+          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
+          LLM_FASTFLOW_VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
+          bash .automation/scripts/ci/image-smoke.sh "$image"
+
+      - name: Summarize
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            echo '## Published FastFlowLM image'
+            echo
+            printf -- '- Source release: `%s`\n' "$RELEASE_TAG"
+            printf -- '- Source revision: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Source prerelease: `%s`\n' "$SOURCE_IS_PRERELEASE"
+            printf -- '- FastFlowLM: `%s`\n' "$FASTFLOWLM_VERSION"
+            printf -- '- FastFlowLM asset: `%s`\n' "$FASTFLOWLM_ASSET"
+            printf -- '- Debian base digest: `%s`\n' "$FASTFLOW_BASE_DIGEST"
+            printf -- '- Default model: `%s`\n' "$FASTFLOW_MODEL"
+            echo '- Accelerator: AMD XDNA2 NPU'
+            echo '- Platform: `linux/amd64`'
+            printf -- '- Digest: `%s`\n' "$DIGEST"
+            echo '- BuildKit provenance: `mode=max`'
+            echo '- BuildKit SBOM: enabled'
+          } >> "$GITHUB_STEP_SUMMARY"

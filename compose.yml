@@ -1,0 +1,25 @@
+services:
+  llm-fastflow:
+    image: ${LLM_FASTFLOW_IMAGE:-infocyph/llm-fastflow:latest}
+    restart: unless-stopped
+    devices:
+      - "${LLM_FASTFLOW_NPU_DEVICE:-/dev/accel/accel0}:/dev/accel/accel0"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "127.0.0.1:${FLM_PORT:-52625}:52625"
+    volumes:
+      - llm-fastflow-models:/models
+    environment:
+      LLM_FASTFLOW_MODEL: ${LLM_FASTFLOW_MODEL:-qwen3.5:9b}
+      FLM_MODEL_PATH: /models
+      FLM_SERVE_PORT: 52625
+      FLM_HOST: 0.0.0.0
+      FLM_CORS: "0"
+      FLM_DISABLE_UPDATE_CHECK: "1"
+
+volumes:
+  llm-fastflow-models:
+    name: ${LLM_FASTFLOW_VOLUME:-llm-fastflow-models}

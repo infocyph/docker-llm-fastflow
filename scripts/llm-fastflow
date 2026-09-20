@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENTRYPOINT="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
+if [[ -d /usr/local/lib/llm-fastflow ]]; then
+  LIB_ROOT=/usr/local/lib/llm-fastflow
+else
+  LIB_ROOT="$SELF_DIR"
+fi
+
+export LLM_FASTFLOW_ENTRYPOINT="$ENTRYPOINT"
+export LLM_FASTFLOW_RUNTIME_ROOT="$LIB_ROOT"
+
+# shellcheck source=scripts/lib/core.sh
+source "$LIB_ROOT/lib/core.sh"
+# shellcheck source=scripts/lib/openai.sh
+source "$LIB_ROOT/lib/openai.sh"
+
+command="${1:-serve}"
+[[ $# -eq 0 ]] || shift
+
+case "$command" in
+  -h|--help) command=help ;;
+  -v|--version) command=version ;;
+  list) command=models ;;
+  rm) command=remove ;;
+esac
+
+[[ "$command" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid command '$command'"
+script="$LIB_ROOT/commands/$command.sh"
+[[ -f "$script" ]] || die "unknown command '$command' (run: llm-fastflow help)"
+
+# shellcheck source=/dev/null
+source "$script"
+command_main "$@"

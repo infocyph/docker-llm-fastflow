@@ -1,0 +1,5 @@
+services:
+  llm-fastflow:
+    working_dir: /workspace
+    volumes:
+      - ${LLM_FASTFLOW_WORKSPACE:-.}:/workspace:${LLM_FASTFLOW_WORKSPACE_MODE:-ro}

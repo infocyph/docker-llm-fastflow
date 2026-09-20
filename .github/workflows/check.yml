@@ -1,0 +1,118 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Static, Compose and image contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Shell validation
+        run: |
+          bash -n scripts/llm-fastflow scripts/lib/*.sh scripts/commands/*.sh scripts/ci/*.sh tests/*.sh
+          shellcheck -x scripts/llm-fastflow scripts/lib/*.sh scripts/commands/*.sh scripts/ci/*.sh tests/*.sh
+
+      - name: Contract tests
+        run: bash tests/contracts.sh
+
+      - name: Resolve current stable FastFlowLM release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          upstream="$(gh api repos/ROCm/FastFlowLM/releases/latest)"
+          upstream_tag="$(jq -r .tag_name <<<"$upstream")"
+          version="${upstream_tag#v}"
+          asset="fastflowlm_${version}_linux.tar.gz"
+          digest="$(jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .digest' <<<"$upstream")"
+          [[ "$upstream_tag" == v* ]]
+          [[ "$digest" == sha256:* ]]
+          {
+            echo "FASTFLOWLM_VERSION=$version"
+            echo "FASTFLOWLM_SHA256=${digest#sha256:}"
+            echo "FASTFLOW_MODEL=qwen3.5:9b"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify default model in resolved FastFlow release
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/ROCm/FastFlowLM/v${FASTFLOWLM_VERSION}/src/model_list.json" \
+            | jq -e '.models["qwen3.5"]["9b"]' >/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve current Debian stable base
+        run: |
+          set -euo pipefail
+          base=debian:stable-slim
+          inspect="$(docker buildx imagetools inspect "$base")"
+          digest="$(awk '/^Digest:/ {print $2; exit}' <<<"$inspect")"
+          [[ "$digest" == sha256:* ]]
+          echo "FASTFLOW_BASE_IMAGE=${base}@${digest}" >> "$GITHUB_ENV"
+
+      - name: Validate Dockerfile structure
+        run: docker buildx build --check --progress=plain .
+
+      - name: Build lightweight runtime smoke image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: fastflow-runtime
+          load: true
+          pull: true
+          tags: llm-fastflow:check
+          build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
+            FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
+            FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
+            LLM_FASTFLOW_VERSION=ci-${{ github.sha }}
+          cache-from: type=gha,scope=fastflow-check
+
+      - name: Runtime image smoke
+        env:
+          FASTFLOWLM_VERSION: ${{ env.FASTFLOWLM_VERSION }}
+          FASTFLOW_MODEL: ${{ env.FASTFLOW_MODEL }}
+          LLM_FASTFLOW_VERSION: ci-${{ github.sha }}
+          FASTFLOW_EXPECT_BAKED_MODEL: "0"
+        run: bash scripts/ci/image-smoke.sh llm-fastflow:check
+
+      - name: Build final baked image contract
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: final
+          load: false
+          pull: false
+          push: false
+          build-args: |
+            FASTFLOW_BASE_IMAGE=${{ env.FASTFLOW_BASE_IMAGE }}
+            FASTFLOWLM_VERSION=${{ env.FASTFLOWLM_VERSION }}
+            FASTFLOWLM_SHA256=${{ env.FASTFLOWLM_SHA256 }}
+            FASTFLOW_MODEL=${{ env.FASTFLOW_MODEL }}
+            LLM_FASTFLOW_VERSION=ci-${{ github.sha }}
+          cache-from: type=gha,scope=fastflow-check
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=fastflow-check' || '' }}
+          provenance: false
+          sbom: false

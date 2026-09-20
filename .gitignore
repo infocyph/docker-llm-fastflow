@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+
+.idea/
+.vscode/
+.codex/
+
+*.log
+*.tmp
+*.tar
+*.tar.gz
+*.zip
+
+tmp/
+cache/
+dist/
