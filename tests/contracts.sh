@@ -149,8 +149,9 @@ done
 
 grep -Fq '/v1/chat/completions' scripts/lib/openai.sh
 grep -Fq '/v1/models' scripts/lib/openai.sh
-grep -Fq 'data:image/png;base64,' scripts/lib/openai.sh
-grep -Fq 'data:image/jpeg;base64,' scripts/lib/openai.sh
+grep -Fq "printf 'data:%s;base64,'" scripts/lib/openai.sh
+grep -Fq '*.png) printf '''%s''' image/png' scripts/lib/openai.sh
+grep -Fq '*.jpg|*.jpeg) printf '''%s''' image/jpeg' scripts/lib/openai.sh
 if grep -R -nE '/api/(chat|generate|tags)' scripts/lib scripts/commands; then
   fail "FastFlow developer CLI must not depend on Ollama-native API routes"
 fi
