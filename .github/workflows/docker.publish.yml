@@ -301,15 +301,18 @@ jobs:
           ref="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}@${DIGEST}"
           image_json="$(docker buildx imagetools inspect "$ref" --format '{{json (index .Image "linux/amd64")}}')"
 
-          jq -e '
-            .os == "linux"
-            and .architecture == "amd64"
-            and .config.Entrypoint == ["llm-fastflow"]
-            and .config.Cmd == ["serve"]
-            and (.config.Env | index("LLM_FASTFLOW_MODEL='${FASTFLOW_MODEL}'") != null)
-            and (.config.Env | index("LLM_FASTFLOW_VERSION='${RELEASE_TAG}'") != null)
-            and (.config.ExposedPorts["52625/tcp"] != null)
-          ' <<<"$image_json" >/dev/null
+          jq -e \
+            --arg model "$FASTFLOW_MODEL" \
+            --arg version "$RELEASE_TAG" \
+            '
+              .os == "linux"
+              and .architecture == "amd64"
+              and .config.Entrypoint == ["llm-fastflow"]
+              and .config.Cmd == ["serve"]
+              and (.config.Env | index("LLM_FASTFLOW_MODEL=" + $model) != null)
+              and (.config.Env | index("LLM_FASTFLOW_VERSION=" + $version) != null)
+              and (.config.ExposedPorts["52625/tcp"] != null)
+            ' <<<"$image_json" >/dev/null
 
       - name: Summarize
         env:
