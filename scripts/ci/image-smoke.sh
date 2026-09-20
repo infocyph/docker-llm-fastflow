@@ -13,6 +13,8 @@ wrapper_output="$(docker run --rm --entrypoint llm-fastflow "$image" version)"
 IFS= read -r wrapper_version <<<"$wrapper_output"
 [[ "$wrapper_version" == "llm-fastflow ${expected_wrapper}" ]]
 
+docker run --rm --entrypoint /opt/fastflowlm/flm "$image" check qwen3.5:9b >/dev/null
+
 # shellcheck disable=SC2016
 docker run --rm --entrypoint /bin/sh "$image" -c '
   test -x /opt/fastflowlm/flm
