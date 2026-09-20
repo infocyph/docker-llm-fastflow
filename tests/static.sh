@@ -61,7 +61,7 @@ args="$(
   FLM_SERVE_PORT=52625 \
   LLM_FASTFLOW_QUEUE_LENGTH=10 \
   LLM_FASTFLOW_SOCKET_CONNECTIONS=10 \
-  scripts/entrypoint.sh
+  bash scripts/entrypoint.sh
 )"
 
 for expected in serve qwen3.5:9b --host 0.0.0.0 --port 52625 --cors 0 --q-len 10 --socket 10; do
@@ -75,7 +75,7 @@ args="$(
   FLM_SERVE_PORT=52625 \
   LLM_FASTFLOW_QUEUE_LENGTH=10 \
   LLM_FASTFLOW_SOCKET_CONNECTIONS=10 \
-  scripts/entrypoint.sh serve qwen3.5:4b --port 6000 --host 127.0.0.1 --cors 1
+  bash scripts/entrypoint.sh serve qwen3.5:4b --port 6000 --host 127.0.0.1 --cors 1
 )"
 grep -Fxq 'qwen3.5:4b' <<<"$args" || fail "explicit model override lost"
 grep -Fxq '6000' <<<"$args" || fail "explicit port override lost"
@@ -84,13 +84,13 @@ grep -Fxq '1' <<<"$args" || fail "explicit CORS override lost"
 pass "explicit FastFlow serve overrides"
 
 wrapper_version="$(
-  FLM_BIN="$fake" LLM_FASTFLOW_VERSION=test-build scripts/llm-fastflow version
+  FLM_BIN="$fake" LLM_FASTFLOW_VERSION=test-build bash scripts/llm-fastflow version
 )"
 grep -Fqx 'llm-fastflow test-build' <<<"$wrapper_version" ||
   fail "wrapper version contract drifted"
 
 models="$(
-  FLM_BIN="$fake" scripts/llm-fastflow models --json
+  FLM_BIN="$fake" bash scripts/llm-fastflow models --json
 )"
 grep -Fxq 'list' <<<"$models" || fail "models alias must call flm list"
 grep -Fxq -- '--json' <<<"$models" || fail "models arguments were not forwarded"
