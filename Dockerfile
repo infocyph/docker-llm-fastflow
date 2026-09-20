@@ -26,6 +26,7 @@ RUN apt-get update \
         curl \
         jq \
         libdrm2 \
+        libgomp1 \
         libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -39,6 +40,10 @@ RUN set -eux; \
     tar -xzf "$archive" -C /opt/fastflowlm; \
     rm -f "$archive"; \
     test -x /opt/fastflowlm/flm; \
+    test -x /opt/fastflowlm/flm-real; \
+    ldd /opt/fastflowlm/flm-real | tee /tmp/fastflowlm-ldd.txt; \
+    ! grep -q 'not found' /tmp/fastflowlm-ldd.txt; \
+    rm -f /tmp/fastflowlm-ldd.txt; \
     /opt/fastflowlm/flm version
 
 COPY scripts/llm-fastflow /usr/local/bin/llm-fastflow
