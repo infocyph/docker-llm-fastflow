@@ -57,7 +57,7 @@ VOLUME ["/models"]
 EXPOSE 52625
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD-SHELL curl --connect-timeout 2 -fsS "http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models" >/dev/null || exit 1
+  CMD curl --connect-timeout 2 -fsS "http://127.0.0.1:${FLM_SERVE_PORT:-52625}/v1/models" >/dev/null || exit 1
 
 STOPSIGNAL SIGTERM
 
