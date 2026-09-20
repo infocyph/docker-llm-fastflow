@@ -67,7 +67,7 @@ grep -Fqx 'CMD ["serve"]' Dockerfile
 grep -Fqx 'STOPSIGNAL SIGINT' Dockerfile
 grep -Fq 'libxrt_driver_xdna.so.2' Dockerfile
 grep -Fq 'poppler-utils' Dockerfile
-grep -Eq '^[[:space:]]+git[[:space:]]+\\\\
+grep -Fq '        git' Dockerfile
 grep -Fq 'COPY scripts/prompts /usr/local/lib/llm-fastflow/prompts' Dockerfile
 if grep -Fq 'amdxdna-dkms' Dockerfile; then
   fail "host kernel driver must not be installed inside the image"
