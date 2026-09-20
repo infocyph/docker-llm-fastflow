@@ -163,7 +163,7 @@ grep -Fq -- "--format '{{json .Manifest}}'" .github/workflows/docker.publish.yml
 grep -Fq -- "--format '{{json (index .Image \"linux/amd64\")}}'" .github/workflows/docker.publish.yml
 grep -Fq 'type=gha,scope=fastflow-check' .github/workflows/docker.publish.yml
 grep -Fq 'cache-to: type=gha,mode=max,scope=fastflow-publish,ignore-error=true' .github/workflows/docker.publish.yml
-if grep -Fq 'docker pull --platform linux/amd64 "$digest_ref"' .github/workflows/docker.publish.yml; then
+if grep -Fq "docker pull --platform linux/amd64 \"\$digest_ref\"" .github/workflows/docker.publish.yml; then
   fail "publish verification must not re-pull the multi-gigabyte FastFlow image"
 fi
 if grep -Fq 'platforms: linux/amd64,linux/arm64' .github/workflows/docker.publish.yml; then
