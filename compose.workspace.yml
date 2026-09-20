@@ -1,8 +1,5 @@
 services:
   llm-fastflow:
-    volumes:
-      - type: bind
-        source: ${LLM_FASTFLOW_WORKSPACE:-.}
-        target: /workspace
-        read_only: ${LLM_FASTFLOW_WORKSPACE_MODE:-ro}
     working_dir: /workspace
+    volumes:
+      - ${LLM_FASTFLOW_WORKSPACE:-.}:/workspace:${LLM_FASTFLOW_WORKSPACE_MODE:-ro}
